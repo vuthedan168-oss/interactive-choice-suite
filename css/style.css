@@ -1,0 +1,168 @@
+/* Interactive Choice Suite - Master Stylesheet */
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.35), 0 0 40px rgba(245, 158, 11, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(245, 158, 11, 0.6), 0 0 65px rgba(245, 158, 11, 0.25);
+  }
+}
+
+@keyframes floatSoft {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1deg);
+  }
+}
+
+@keyframes crownBounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) scale(1.08);
+  }
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(8px);
+  }
+  70% {
+    transform: scale(1.05) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes radiantSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-gold {
+  background: linear-gradient(135deg, rgba(24, 24, 27, 0.88), rgba(15, 23, 42, 0.82));
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(251, 191, 36, 0.2);
+}
+
+/* Speech Bubble for Runaway Target */
+.runaway-speech-bubble {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(244, 63, 94, 0.8);
+  white-space: nowrap;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.runaway-speech-bubble.pop-in {
+  animation: popIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.runaway-speech-bubble.fade-out {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Runaway Target Transition */
+.runaway-target {
+  transition: transform 0.14s ease-out, top 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), left 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: top, left, transform;
+  user-select: none;
+}
+
+/* Red Carpet Card Styling */
+.carpet-card {
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.2, 0, 0.2, 1), border-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.carpet-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(251, 191, 36, 0.75);
+  box-shadow: 0 20px 40px -15px rgba(245, 158, 11, 0.35), 0 0 20px rgba(251, 191, 36, 0.2);
+}
+
+.carpet-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.15), transparent);
+  transform: skewX(-25deg);
+  pointer-events: none;
+  transition: left 0.75s ease;
+}
+
+.carpet-card:hover::after {
+  left: 160%;
+}
+
+/* Gold Gradient Text */
+.gold-text {
+  background: linear-gradient(135deg, #fef08a, #f59e0b, #d97706);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Golden Trophy Glow */
+.trophy-glow {
+  filter: drop-shadow(0 0 25px rgba(245, 158, 11, 0.8));
+  animation: crownBounce 2.5s infinite ease-in-out;
+}
+
+/* Red Carpet Ribbon */
+.red-carpet-accent {
+  background: linear-gradient(90deg, #b91c1c 0%, #dc2626 50%, #991b1b 100%);
+  box-shadow: 0 4px 15px rgba(185, 28, 28, 0.5);
+}
+
+/* VS Badge Pulse */
+.vs-badge {
+  animation: pulseGlow 2.2s infinite ease-in-out;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 158, 11, 0.65);
+}

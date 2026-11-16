@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Choice Suite - Nút Chạy Trốn & Vua Giữ Đài</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            carpet: {
+              gold: '#f59e0b',
+              glow: '#fbbf24',
+              dark: '#0a0a0c'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-amber-500 selection:text-slate-950 overflow-x-hidden">
+
+  <!-- ========================================================
+       TOP HEADER (ADAPTIVE: STUDIO VS PLAYER VIEW)
+       ======================================================== -->
+  <header id="main-header" class="sticky top-0 z-50 glass-panel border-b border-white/10 px-4 md:px-8 py-3.5 flex items-center justify-between">
+    
+    <!-- Left: Brand / Title -->
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-yellow-400 p-0.5 shadow-lg shadow-amber-500/20">
+        <div class="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center text-amber-400">
+          <i data-lucide="sparkles" class="w-5 h-5"></i>
+        </div>
+      </div>
+      <div>
+        <div class="font-black text-sm tracking-wider uppercase flex items-center gap-2">
+          <span class="gold-text">NEXUS CHOICE</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-slate-300 border border-white/10">v2.0</span>
+        </div>
+        <div class="text-[11px] text-slate-400">Interactive Suite & Troll Choice Engine</div>
+      </div>
+    </div>
+
+    <!-- Center: Studio Mode Switcher Tabs (Visible in Studio) -->
+    <div id="studio-mode-tabs" class="hidden md:flex items-center p-1 rounded-2xl bg-white/5 border border-white/10">
+      <button id="tab-mode1" type="button" class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/30 transition-all">
+        <i data-lucide="heart" class="w-4 h-4"></i>
+        <span>Nút Chạy Trốn (Love/Troll)</span>
+      </button>
+      <button id="tab-mode2" type="button" class="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+        <i data-lucide="crown" class="w-4 h-4"></i>
+        <span>Vua Giữ Đài (Thảm Đỏ)</span>
+      </button>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center gap-3">
+      <!-- Sound Toggle -->
+      <button id="btn-sound-toggle" type="button" class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition-all" title="Bật/Tắt âm thanh">
+        <i data-lucide="volume-2" class="w-4 h-4"></i>
+      </button>
+
+      <!-- Player View Banner Link back to Studio (shown only in Player View) -->
+      <div id="player-top-banner" class="hidden flex items-center gap-3">
+        <span id="player-banner-gamename" class="text-xs font-bold text-amber-300 hidden sm:inline"></span>
+        <button id="btn-go-studio" type="button" class="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 hover:shadow-amber-400/40 transition-all flex items-center gap-1.5">
+          <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+          <span>Tạo trò chơi của riêng bạn</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Mode Tabs -->
+  <div class="md:hidden flex p-2 border-b border-white/10 bg-slate-950/80 gap-2">
+    <button onclick="document.getElementById('tab-mode1').click()" class="flex-1 py-2 text-xs font-bold text-center rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30">
+      Phần 1: Nút Chạy Trốn
+    </button>
+    <button onclick="document.getElementById('tab-mode2').click()" class="flex-1 py-2 text-xs font-bold text-center rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
+      Phần 2: Vua Giữ Đài
+    </button>
+  </div>
+
+  <!-- ========================================================
+       CREATOR STUDIO CONTAINER (ADMIN / CREATOR VIEW)
+       ======================================================== -->
+  <main id="creator-studio-container" class="max-w-6xl mx-auto px-4 md:px-8 py-8 space-y-8">
+    
+    <!-- ========================================================
+         STUDIO PANEL 1: DO YOU LOVE ME / RUNAWAY BUTTON
+         ======================================================== -->
+    <section id="studio-panel-mode1" class="space-y-6">
+      
+      <!-- Banner Introduction -->
+      <div class="p-6 md:p-8 rounded-3xl bg-gradient-to-r from-rose-950/80 via-purple-950/60 to-slate-900 border border-rose-500/30 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div class="space-y-2">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold">
+            <i data-lucide="heart" class="w-3.5 h-3.5"></i>
+            <span>Do You Love Me & Troll Choice Maker</span>
+          </div>
+          <h2 class="text-2xl md:text-3xl font-black text-white">
+            Tạo Câu Hỏi Với Nút Chạy Trốn Tinh Quái
+          </h2>
+          <p class="text-sm text-slate-300 max-w-2xl">
+            Khi người nhận di chuột hoặc chạm vào nút từ chối, nút sẽ lập tức bay nhảy né tránh khắp màn hình kèm lời thoại hài hước! Họ buộc phải chọn đáp án bạn mong muốn.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3 shrink-0">
+          <button id="btn-play-mode1" type="button" class="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 transition-all flex items-center gap-2">
+            <i data-lucide="play" class="w-4 h-4 text-emerald-400"></i>
+            <span>Chơi Thử</span>
+          </button>
+          <button id="btn-share-mode1" type="button" class="px-6 py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-black text-sm shadow-xl shadow-rose-500/30 hover:shadow-rose-400/60 transition-all flex items-center gap-2">
+            <i data-lucide="share-2" class="w-4 h-4"></i>
+            <span>Lấy Link Chia Sẻ</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Settings Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left: Questions & Answers (2 Cols) -->
+        <div class="lg:col-span-2 space-y-6">
+          <div class="glass-panel rounded-3xl p-6 md:p-8 space-y-6 border border-white/10">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="message-square" class="w-5 h-5 text-rose-400"></i>
+              <span>Nội Dung Câu Hỏi & Đáp Án</span>
+            </h3>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                  Tiêu đề câu hỏi chính
+                </label>
+                <input id="m1-question" type="text" class="w-full px-4 py-3.5 rounded-xl bg-slate-900/90 border border-white/15 text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-all font-medium text-base" placeholder="VD: Cậu có yêu tớ không? ❤️" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                  Mô tả phụ / Lời nhắn nhủ
+                </label>
+                <input id="m1-subtitle" type="text" class="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-white/15 text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-all text-sm" placeholder="VD: Hãy suy nghĩ thật kỹ trước khi đưa ra quyết định nhé!" />
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-1.5">
+                    <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                    <span>Nút Mong Muốn (Bắt buộc chọn)</span>
+                  </label>
+                  <input id="m1-target-text" type="text" class="w-full px-4 py-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-emerald-200 placeholder-emerald-600 focus:outline-none focus:border-emerald-400 transition-all font-bold text-sm" placeholder="VD: Có ơi là có 💕" />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold uppercase tracking-wider text-rose-400 mb-2 flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Nút Chạy Trốn (Không cho bấm)</span>
+                  </label>
+                  <input id="m1-reject-text" type="text" class="w-full px-4 py-3 rounded-xl bg-rose-950/30 border border-rose-500/40 text-rose-200 placeholder-rose-600 focus:outline-none focus:border-rose-400 transition-all font-bold text-sm" placeholder="VD: Không bao giờ 😒" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Celebration Screen Settings -->
+          <div class="glass-panel rounded-3xl p-6 md:p-8 space-y-6 border border-white/10">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="party-popper" class="w-5 h-5 text-amber-400"></i>
+              <span>Màn Hình Ăn Mừng & GIF Hài Hước</span>
+            </h3>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                  Tiêu đề ăn mừng khi bấm nút
+                </label>
+                <input id="m1-celeb-title" type="text" class="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-white/15 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-all font-bold text-sm" placeholder="VD: Yay! Tớ biết mà! Cảm ơn cậu nhiều nha! 🎉" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                  Lời tâm sự / Lời chúc hiển thị
+                </label>
+                <textarea id="m1-celeb-msg" rows="3" class="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-white/15 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-all text-sm leading-relaxed" placeholder="Nhập lời chúc ngọt ngào hoặc lời nhắn nhủ vui vẻ..."></textarea>
+              </div>
+
+              <!-- GIF Selection Section -->
+              <div class="space-y-3 pt-2">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Chọn Ảnh Động (GIF) Có Sẵn Hoặc Nhập URL
+                  </label>
+                  <a href="https://pixabay.com/vi/gifs/search/love/" target="_blank" rel="noopener noreferrer" class="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition-colors">
+                    <span>Tìm thêm trên Pixabay GIF</span>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                  </a>
+                </div>
+
+                <!-- Curated GIF Grid -->
+                <div id="m1-gif-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+
+                <!-- Custom GIF URL Input -->
+                <div class="pt-2">
+                  <label class="block text-[11px] font-bold text-slate-400 mb-1">
+                    Hoặc dán trực tiếp link GIF từ Pixabay/Giphy:
+                  </label>
+                  <input id="m1-custom-gif" type="url" class="w-full px-4 py-2.5 rounded-xl bg-slate-900/90 border border-white/15 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-rose-400" placeholder="https://media.giphy.com/.../giphy.gif" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Theme Selection & Share Box (1 Col) -->
+        <div class="space-y-6">
+          <!-- Theme Picker -->
+          <div class="glass-panel rounded-3xl p-6 space-y-4 border border-white/10">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="palette" class="w-4 h-4 text-rose-400"></i>
+              <span>Chọn Chủ Đề Nền & Màu Sắc</span>
+            </h3>
+            <p class="text-xs text-slate-400">
+              Chọn chủ đề phù hợp để gửi cho người yêu, bạn thân hoặc đồng nghiệp:
+            </p>
+            <div id="m1-theme-picker" class="grid grid-cols-1 gap-2.5"></div>
+          </div>
+
+          <!-- Share Instructions Box -->
+          <div class="p-6 rounded-3xl bg-gradient-to-br from-slate-900 to-rose-950/40 border border-rose-500/20 space-y-4">
+            <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+              <i data-lucide="send" class="w-5 h-5"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">Cách Thức Hoạt Động</h4>
+            <ul class="text-xs text-slate-300 space-y-2 leading-relaxed">
+              <li class="flex items-start gap-2">
+                <span class="text-rose-400 font-bold">•</span>
+                <span>Khi bạn bấm <strong>Lấy Link Chia Sẻ</strong>, toàn bộ câu hỏi và cài đặt sẽ được nén vào link duy nhất.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-rose-400 font-bold">•</span>
+                <span>Người mở link sẽ <strong>chỉ thấy màn hình chơi game</strong>, hoàn toàn không thấy bảng điều khiển hay đáp án ẩn!</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-rose-400 font-bold">•</span>
+                <span>Nút từ chối sẽ né tránh siêu mượt mà trên cả máy tính lẫn điện thoại cảm ứng.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================
+         STUDIO PANEL 2: VUA GIỮ ĐÀI (KNOCKOUT RED CARPET)
+         ======================================================== -->
+    <section id="studio-panel-mode2" class="space-y-6 hidden">
+      
+      <!-- Banner Introduction -->
+      <div class="p-6 md:p-8 rounded-3xl bg-gradient-to-r from-amber-950/80 via-zinc-950/90 to-slate-950 border border-amber-400/40 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div class="space-y-2">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30 text-xs font-black uppercase tracking-wider">
+            <i data-lucide="crown" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>Đấu Trường Thảm Đỏ • Knockout Vua Giữ Đài</span>
+          </div>
+          <h2 class="text-2xl md:text-3xl font-black text-white">
+            16 Ngôi Sao Thảm Đỏ & <span class="gold-text">Tính Năng Vua Chỉ Định</span>
+          </h2>
+          <p class="text-sm text-slate-300 max-w-2xl leading-relaxed">
+            Thể thức 'Vua giữ đài' loại trực tiếp giữa các nhân vật đình đám. Đặc biệt: bạn có thể <strong>chỉ định người thắng bắt buộc</strong> (ví dụ đặt bạn vào làm Trùm Cuối). Khi đấu với người này, thẻ bài đối thủ sẽ nhảy né tránh khắp màn hình và không cho bấm!
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3 shrink-0">
+          <button id="btn-play-mode2" type="button" class="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 transition-all flex items-center gap-2">
+            <i data-lucide="play" class="w-4 h-4 text-amber-400"></i>
+            <span>Chơi Thử</span>
+          </button>
+          <button id="btn-share-mode2" type="button" class="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 hover:shadow-amber-400/60 transition-all flex items-center gap-2">
+            <i data-lucide="share-2" class="w-4 h-4"></i>
+            <span>Lấy Link Giải Đấu</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Settings & Rigged Feature Controls -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left: Roster List (2 Cols) -->
+        <div class="lg:col-span-2 space-y-6">
+          <div class="glass-panel-gold rounded-3xl p-6 md:p-8 space-y-6">
+            
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+              <div>
+                <h3 class="text-lg font-black text-white flex items-center gap-2">
+                  <i data-lucide="users" class="w-5 h-5 text-amber-400"></i>
+                  <span>Danh Sách Ứng Viên Thảm Đỏ</span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">
+                  Bạn có thể thêm bớt, sửa ảnh, xóa hoặc thêm chính bản thân mình vào cuộc đấu
+                </p>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <span id="m2-candidate-count" class="px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-xs font-bold">
+                  16 người
+                </span>
+                <button id="btn-open-add-candidate" type="button" class="px-4 py-2 rounded-xl bg-amber-400 text-slate-950 font-black text-xs hover:bg-amber-300 transition-all flex items-center gap-1.5 shadow-md shadow-amber-400/20">
+                  <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+                  <span>Thêm Người Mới</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Action shortcuts: Add Me as Final Boss -->
+            <div class="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-red-500/20 border border-amber-400/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+                  👑
+                </div>
+                <div>
+                  <div class="text-xs font-black text-amber-300 uppercase">Cài Đặt Nhanh: Bạn Là Trùm Cuối</div>
+                  <div class="text-[11px] text-slate-300">Tự động thêm bạn vào trận chung kết và bật chế độ không thể thua!</div>
+                </div>
+              </div>
+              <button id="btn-add-me-boss" type="button" class="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs hover:shadow-lg hover:shadow-amber-400/40 transition-all shrink-0">
+                Thêm TÔI Làm Trùm Cuối ➔
+              </button>
+            </div>
+
+            <!-- Candidates Roster List -->
+            <div id="m2-roster-list" class="space-y-2.5 max-h-[500px] overflow-y-auto pr-1"></div>
+
+            <div class="flex items-center justify-between pt-2">
+              <button id="btn-reset-roster" type="button" class="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1.5">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span>Khôi phục 16 ngôi sao mặc định ban đầu</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Rigged Feature & General Config (1 Col) -->
+        <div class="space-y-6">
+          
+          <!-- Rigged Feature Settings -->
+          <div class="glass-panel-gold rounded-3xl p-6 space-y-5">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold">
+                <i data-lucide="zap" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-black text-white uppercase tracking-wider">Tính Năng Vượt Trội</h3>
+                <div class="text-[11px] text-amber-400 font-bold">Vua Chỉ Định (Rigged Winner)</div>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Chọn nhân vật mà bạn muốn <strong>bắt buộc phải giành ngôi Quán quân</strong>. Khi người chơi đối đầu với nhân vật này, nếu họ cố tình chọn người khác, thẻ bài đó sẽ <strong>nhảy khắp màn hình</strong> không cho bấm!
+            </p>
+
+            <div class="space-y-3 pt-2">
+              <div>
+                <label class="block text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-1.5">
+                  Nhân vật thắng tuyệt đối:
+                </label>
+                <select id="m2-rigged-winner" class="w-full px-3.5 py-3 rounded-xl bg-slate-900 border border-amber-400/50 text-white font-bold text-xs focus:outline-none focus:border-amber-400"></select>
+              </div>
+
+              <div class="pt-2">
+                <label class="flex items-start gap-2.5 cursor-pointer">
+                  <input id="m2-final-boss-toggle" type="checkbox" checked class="mt-1 w-4 h-4 rounded text-amber-500 bg-slate-900 border-white/20 focus:ring-amber-400" />
+                  <span class="text-xs text-slate-300">
+                    <strong>Giữ làm Trùm Cuối:</strong> Nhân vật chỉ định sẽ xuất hiện ở trận chung kết quyết định!
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- General Tournament Config -->
+          <div class="glass-panel rounded-3xl p-6 space-y-4 border border-white/10">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-slate-400"></i>
+              <span>Tiêu Đề Giải Đấu</span>
+            </h3>
+
+            <div class="space-y-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-400 mb-1">Tên sự kiện / giải đấu</label>
+                <input id="m2-title" type="text" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-amber-400" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-400 mb-1">Mô tả phụ</label>
+                <input id="m2-subtitle" type="text" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-amber-400" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================
+       PLAYER EXPERIENCE CONTAINER (DEDICATED PLAYER VIEW)
+       ======================================================== -->
+  <div id="player-experience-container" class="hidden min-h-[85vh]"></div>
+
+  <!-- ========================================================
+       MODAL: ADD NEW CANDIDATE FOR MODE 2
+       ======================================================== -->
+  <div id="modal-add-candidate" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="glass-panel-gold rounded-3xl max-w-md w-full p-6 md:p-8 space-y-5 animate-pop-in border border-amber-400/50">
+      
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <h3 class="text-base font-black text-white flex items-center gap-2">
+          <i data-lucide="user-plus" class="w-4 h-4 text-amber-400"></i>
+          <span>Thêm Nhân Vật Thảm Đỏ</span>
+        </h3>
+        <button id="btn-cancel-candidate" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Họ và tên nhân vật *</label>
+          <input id="modal-cand-name" type="text" placeholder="VD: Bạn Thân / Tên Tôi / Ca sĩ X" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/15 text-white font-bold focus:outline-none focus:border-amber-400" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Nghề nghiệp / Lĩnh vực</label>
+          <input id="modal-cand-field" type="text" placeholder="VD: Ca sĩ / Game thủ / Idol tương lai" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/15 text-white focus:outline-none focus:border-amber-400" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Tải ảnh đại diện lên từ máy tính</label>
+          <input id="modal-cand-file" type="file" accept="image/*" class="w-full text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-400 file:text-slate-950 hover:file:bg-amber-300 cursor-pointer" />
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-300 mb-1">Hoặc dán link ảnh trực tuyến (URL)</label>
+          <input id="modal-cand-avatar" type="url" placeholder="https://..." class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/15 text-white focus:outline-none focus:border-amber-400" />
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+        <button type="button" onclick="document.getElementById('modal-add-candidate').classList.add('hidden')" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 font-bold text-xs transition-all">
+          Hủy
+        </button>
+        <button id="btn-save-candidate" type="button" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs hover:shadow-lg hover:shadow-amber-400/40 transition-all">
+          Lưu Nhân Vật
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================
+       TOAST NOTIFICATION
+       ======================================================== -->
+  <div id="toast-notification" class="fixed bottom-6 right-6 z-50 transform translate-y-12 opacity-0 transition-all duration-300 hidden">
+    <div class="px-5 py-3.5 rounded-2xl glass-panel-gold border border-amber-400/60 shadow-2xl flex items-center gap-3">
+      <div class="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-bold text-sm">
+        ✨
+      </div>
+      <div id="toast-text" class="text-xs font-bold text-white max-w-xs"></div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
