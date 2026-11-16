@@ -1,15 +1,35 @@
 /**
  * Love Choice Suite - Core Application
+ * Mode 1: Bẫy Tình Yêu (Love Trap)
+ * Mode 2: Đại Chiến Thần Tượng (Idol Clash)
  */
 
 class App {
   constructor() {
+    this.currentMode = 'mode1'; // 'mode1' | 'mode2'
     this.currentView = 'studio'; // 'studio' | 'player'
     this.isMuted = false;
 
-    // Config state
-    this.config = { ...DEFAULT_MODE1_CONFIG };
-    this.isCelebrated = false;
+    // Mode 1: Bẫy Tình Yêu State
+    this.mode1Config = { ...DEFAULT_MODE1_CONFIG };
+
+    // Mode 2: Đại Chiến Thần Tượng State
+    this.mode2Config = {
+      title: DEFAULT_MODE2_CONFIG.title,
+      subtitle: DEFAULT_MODE2_CONFIG.subtitle,
+      roster: JSON.parse(JSON.stringify(DEFAULT_MODE2_CONFIG.roster)),
+      riggedWinnerId: "",
+      riggedFinalBoss: true
+    };
+    this.mode2Game = {
+      queue: [],
+      candidate1: null,
+      candidate2: null,
+      roundNumber: 1,
+      totalRounds: 1,
+      isFinished: false,
+      winner: null
+    };
 
     this.init();
   }
@@ -19,12 +39,13 @@ class App {
     this.bindGlobalEvents();
     this.renderStudioThemePicker();
     this.renderStudioGifGrid();
-    this.syncStudioInputs();
+    this.syncStudioMode1Inputs();
+    this.renderStudioMode2();
 
     if (this.currentView === 'player') {
       this.launchPlayerView();
     } else {
-      this.launchStudioView();
+      this.switchStudioMode(this.currentMode);
     }
   }
 
@@ -38,10 +59,20 @@ class App {
       const payload = params.get('data') || hash;
       const decoded = deserializeConfig(payload);
       if (decoded && decoded.config) {
-        this.config = { ...this.config, ...decoded.config };
+        if (decoded.type === 'mode2') {
+          this.currentMode = 'mode2';
+          this.mode2Config = { ...this.mode2Config, ...decoded.config };
+        } else {
+          this.currentMode = 'mode1';
+          this.mode1Config = { ...this.mode1Config, ...decoded.config };
+        }
+      } else if (params.get('mode') === 'mode2') {
+        this.currentMode = 'mode2';
       }
     } else {
       this.currentView = 'studio';
+      const modeParam = params.get('mode');
+      if (modeParam === 'mode2') this.currentMode = 'mode2';
     }
   }
 
@@ -60,33 +91,49 @@ class App {
       });
     }
 
-    // Share link button
-    const btnShare = document.getElementById('btn-share-main');
-    if (btnShare) {
-      btnShare.addEventListener('click', () => this.generateAndCopyShareLink());
-    }
+    // Studio Mode Switcher Tabs
+    const tabMode1 = document.getElementById('tab-mode1');
+    const tabMode2 = document.getElementById('tab-mode2');
+    if (tabMode1) tabMode1.addEventListener('click', () => this.switchStudioMode('mode1'));
+    if (tabMode2) tabMode2.addEventListener('click', () => this.switchStudioMode('mode2'));
 
-    // Play now button in studio
-    const btnPlay = document.getElementById('btn-play-preview');
-    if (btnPlay) {
-      btnPlay.addEventListener('click', () => {
-        this.launchPlayerView();
-      });
-    }
+    // Share link buttons
+    const btnShareMode1 = document.getElementById('btn-share-mode1');
+    if (btnShareMode1) btnShareMode1.addEventListener('click', () => this.generateAndCopyShareLink('mode1'));
+
+    const btnShareMode2 = document.getElementById('btn-share-mode2');
+    if (btnShareMode2) btnShareMode2.addEventListener('click', () => this.generateAndCopyShareLink('mode2'));
+
+    // Play now buttons
+    const btnPlayMode1 = document.getElementById('btn-play-mode1');
+    if (btnPlayMode1) btnPlayMode1.addEventListener('click', () => this.previewAsPlayer('mode1'));
+
+    const btnPlayMode2 = document.getElementById('btn-play-mode2');
+    if (btnPlayMode2) btnPlayMode2.addEventListener('click', () => this.previewAsPlayer('mode2'));
 
     // Back to edit from player view
     const btnBackEdit = document.getElementById('btn-back-to-edit');
     if (btnBackEdit) {
       btnBackEdit.addEventListener('click', () => {
-        this.launchStudioView();
+        evasionEngine.detach();
+        this.currentView = 'studio';
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.hash = '';
+        window.history.pushState({}, '', url.toString());
+        this.switchStudioMode(this.currentMode);
       });
     }
   }
 
-  launchStudioView() {
+  switchStudioMode(mode) {
+    this.currentMode = mode;
     evasionEngine.detach();
-    this.currentView = 'studio';
 
+    const tabMode1 = document.getElementById('tab-mode1');
+    const tabMode2 = document.getElementById('tab-mode2');
+    const panelMode1 = document.getElementById('studio-panel-mode1');
+    const panelMode2 = document.getElementById('studio-panel-mode2');
     const studioContainer = document.getElementById('creator-studio-container');
     const playerContainer = document.getElementById('player-experience-container');
     const playerControls = document.getElementById('player-controls-bar');
@@ -95,30 +142,27 @@ class App {
     playerContainer.classList.add('hidden');
     if (playerControls) playerControls.classList.add('hidden');
 
-    this.renderBackgroundDecorations(this.config.theme);
-    lucide.createIcons();
-  }
+    if (mode === 'mode1') {
+      tabMode1.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg shadow-pink-500/30 transition-all';
+      tabMode2.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all';
+      panelMode1.classList.remove('hidden');
+      panelMode2.classList.add('hidden');
+      this.renderBackgroundDecorations(this.mode1Config.theme);
+    } else {
+      tabMode2.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-lg shadow-amber-500/30 transition-all';
+      tabMode1.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all';
+      panelMode1.classList.add('hidden');
+      panelMode2.classList.remove('hidden');
+      this.renderBackgroundDecorations('luxury');
+    }
 
-  launchPlayerView() {
-    evasionEngine.detach();
-    this.currentView = 'player';
-
-    const studioContainer = document.getElementById('creator-studio-container');
-    const playerContainer = document.getElementById('player-experience-container');
-    const playerControls = document.getElementById('player-controls-bar');
-
-    studioContainer.classList.add('hidden');
-    playerContainer.classList.remove('hidden');
-    if (playerControls) playerControls.classList.remove('hidden');
-
-    this.startPlayerGame();
     lucide.createIcons();
   }
 
   /* ========================================================
-   * STUDIO CONTROLS & THEME COLOR PALETTES
+   * MODE 1: BẪY TÌNH YÊU STUDIO
    * ======================================================== */
-  syncStudioInputs() {
+  syncStudioMode1Inputs() {
     const questionInput = document.getElementById('m1-question');
     const subtitleInput = document.getElementById('m1-subtitle');
     const targetInput = document.getElementById('m1-target-text');
@@ -127,23 +171,23 @@ class App {
     const celebMsgInput = document.getElementById('m1-celeb-msg');
     const customGifInput = document.getElementById('m1-custom-gif');
 
-    if (questionInput) questionInput.value = this.config.question;
-    if (subtitleInput) subtitleInput.value = this.config.subtitle;
-    if (targetInput) targetInput.value = this.config.targetText;
-    if (rejectInput) rejectInput.value = this.config.rejectText;
-    if (celebTitleInput) celebTitleInput.value = this.config.celebrationTitle;
-    if (celebMsgInput) celebMsgInput.value = this.config.celebrationMessage;
-    if (customGifInput) customGifInput.value = this.config.celebrationGif;
+    if (questionInput) questionInput.value = this.mode1Config.question;
+    if (subtitleInput) subtitleInput.value = this.mode1Config.subtitle;
+    if (targetInput) targetInput.value = this.mode1Config.targetText;
+    if (rejectInput) rejectInput.value = this.mode1Config.rejectText;
+    if (celebTitleInput) celebTitleInput.value = this.mode1Config.celebrationTitle;
+    if (celebMsgInput) celebMsgInput.value = this.mode1Config.celebrationMessage;
+    if (customGifInput) customGifInput.value = this.mode1Config.celebrationGif;
 
     const onInput = () => {
-      this.config.question = questionInput.value.trim() || DEFAULT_MODE1_CONFIG.question;
-      this.config.subtitle = subtitleInput.value.trim();
-      this.config.targetText = targetInput.value.trim() || DEFAULT_MODE1_CONFIG.targetText;
-      this.config.rejectText = rejectInput.value.trim() || DEFAULT_MODE1_CONFIG.rejectText;
-      this.config.celebrationTitle = celebTitleInput.value.trim() || DEFAULT_MODE1_CONFIG.celebrationTitle;
-      this.config.celebrationMessage = celebMsgInput.value.trim() || DEFAULT_MODE1_CONFIG.celebrationMessage;
+      this.mode1Config.question = questionInput.value.trim() || DEFAULT_MODE1_CONFIG.question;
+      this.mode1Config.subtitle = subtitleInput.value.trim();
+      this.mode1Config.targetText = targetInput.value.trim() || DEFAULT_MODE1_CONFIG.targetText;
+      this.mode1Config.rejectText = rejectInput.value.trim() || DEFAULT_MODE1_CONFIG.rejectText;
+      this.mode1Config.celebrationTitle = celebTitleInput.value.trim() || DEFAULT_MODE1_CONFIG.celebrationTitle;
+      this.mode1Config.celebrationMessage = celebMsgInput.value.trim() || DEFAULT_MODE1_CONFIG.celebrationMessage;
       if (customGifInput.value.trim()) {
-        this.config.celebrationGif = customGifInput.value.trim();
+        this.mode1Config.celebrationGif = customGifInput.value.trim();
       }
     };
 
@@ -154,8 +198,8 @@ class App {
     if (customGifInput) {
       customGifInput.addEventListener('change', () => {
         if (customGifInput.value.trim()) {
-          this.config.celebrationGif = customGifInput.value.trim();
-          this.highlightSelectedGif();
+          this.mode1Config.celebrationGif = customGifInput.value.trim();
+          this.renderStudioGifGrid();
         }
       });
     }
@@ -168,7 +212,7 @@ class App {
 
     Object.keys(THEMES).forEach(themeKey => {
       const theme = THEMES[themeKey];
-      const isSelected = this.config.theme === themeKey;
+      const isSelected = this.mode1Config.theme === themeKey;
 
       const card = document.createElement('div');
       card.className = `p-4 rounded-2xl border cursor-pointer transition-all ${
@@ -177,12 +221,10 @@ class App {
           : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
       }`;
 
-      // Build Color Swatches HTML
       const swatchesHtml = theme.swatches.map(color => `
         <span class="w-5 h-5 rounded-full shadow-md border border-white/20 inline-block" style="background-color: ${color}"></span>
       `).join('');
 
-      // Build Decorations Preview HTML
       const decoHtml = theme.decorations.slice(0, 4).join(' ');
 
       card.innerHTML = `
@@ -201,7 +243,6 @@ class App {
           </div>
         </div>
 
-        <!-- Color Palette Preview Strip -->
         <div class="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
           <div class="flex items-center gap-1.5">
             <span class="text-[11px] font-bold text-slate-400 mr-1">Bảng màu:</span>
@@ -214,7 +255,7 @@ class App {
       `;
 
       card.addEventListener('click', () => {
-        this.config.theme = themeKey;
+        this.mode1Config.theme = themeKey;
         this.renderStudioThemePicker();
         this.renderBackgroundDecorations(themeKey);
         this.showToast(`✨ Đã đổi chủ đề: ${theme.name}`);
@@ -232,7 +273,7 @@ class App {
     grid.innerHTML = '';
 
     CURATED_GIFS.forEach(gif => {
-      const isSelected = this.config.celebrationGif === gif.url;
+      const isSelected = this.mode1Config.celebrationGif === gif.url;
       const card = document.createElement('div');
       card.className = `cursor-pointer rounded-xl overflow-hidden border relative group transition-all ${
         isSelected
@@ -251,7 +292,7 @@ class App {
         </div>
       `;
       card.addEventListener('click', () => {
-        this.config.celebrationGif = gif.url;
+        this.mode1Config.celebrationGif = gif.url;
         const customGifInput = document.getElementById('m1-custom-gif');
         if (customGifInput) customGifInput.value = gif.url;
         this.renderStudioGifGrid();
@@ -260,8 +301,308 @@ class App {
     });
   }
 
-  highlightSelectedGif() {
-    this.renderStudioGifGrid();
+  /* ========================================================
+   * MODE 2: ĐẠI CHIẾN THẦN TƯỢNG STUDIO & ROSTER
+   * ======================================================== */
+  renderStudioMode2() {
+    const titleInput = document.getElementById('m2-title');
+    const subtitleInput = document.getElementById('m2-subtitle');
+    const riggedSelect = document.getElementById('m2-rigged-winner');
+    const riggedFinalBossCheck = document.getElementById('m2-final-boss-toggle');
+
+    if (titleInput) {
+      titleInput.value = this.mode2Config.title;
+      titleInput.addEventListener('input', () => {
+        this.mode2Config.title = titleInput.value.trim() || DEFAULT_MODE2_CONFIG.title;
+      });
+    }
+
+    if (subtitleInput) {
+      subtitleInput.value = this.mode2Config.subtitle;
+      subtitleInput.addEventListener('input', () => {
+        this.mode2Config.subtitle = subtitleInput.value.trim() || DEFAULT_MODE2_CONFIG.subtitle;
+      });
+    }
+
+    if (riggedFinalBossCheck) {
+      riggedFinalBossCheck.checked = this.mode2Config.riggedFinalBoss;
+      riggedFinalBossCheck.addEventListener('change', () => {
+        this.mode2Config.riggedFinalBoss = riggedFinalBossCheck.checked;
+      });
+    }
+
+    // Populate Rigged Winner Dropdown
+    if (riggedSelect) {
+      riggedSelect.innerHTML = '<option value="">-- Chơi công bằng (Không chỉ định người thắng) --</option>';
+      this.mode2Config.roster.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `👑 ${c.name} (${c.field})`;
+        if (this.mode2Config.riggedWinnerId === c.id) {
+          opt.selected = true;
+        }
+        riggedSelect.appendChild(opt);
+      });
+
+      riggedSelect.addEventListener('change', () => {
+        this.mode2Config.riggedWinnerId = riggedSelect.value;
+        this.renderStudioMode2Roster();
+      });
+    }
+
+    // Add Candidate Button
+    const btnOpenAddModal = document.getElementById('btn-open-add-candidate');
+    if (btnOpenAddModal) {
+      btnOpenAddModal.onclick = () => this.openCandidateModal(null);
+    }
+
+    // Quick Add "ME" as Final Boss
+    const btnAddMeAsBoss = document.getElementById('btn-add-me-boss');
+    if (btnAddMeAsBoss) {
+      btnAddMeAsBoss.onclick = () => this.addCreatorAsFinalBoss();
+    }
+
+    // Reset Roster
+    const btnResetRoster = document.getElementById('btn-reset-roster');
+    if (btnResetRoster) {
+      btnResetRoster.onclick = () => {
+        if (confirm('Khôi phục danh sách 16 thần tượng mặc định ban đầu?')) {
+          this.mode2Config.roster = JSON.parse(JSON.stringify(DEFAULT_CELEBRITIES));
+          this.mode2Config.riggedWinnerId = "";
+          this.renderStudioMode2();
+          this.showToast('Đã khôi phục danh sách mặc định!');
+        }
+      };
+    }
+
+    this.renderStudioMode2Roster();
+  }
+
+  renderStudioMode2Roster() {
+    const listContainer = document.getElementById('m2-roster-list');
+    const countBadge = document.getElementById('m2-candidate-count');
+    if (countBadge) {
+      countBadge.textContent = `${this.mode2Config.roster.length} người`;
+    }
+
+    if (!listContainer) return;
+    listContainer.innerHTML = '';
+
+    this.mode2Config.roster.forEach((candidate, index) => {
+      const isRigged = this.mode2Config.riggedWinnerId === candidate.id;
+      const row = document.createElement('div');
+      row.className = `p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+        isRigged
+          ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/20'
+          : 'bg-slate-900/60 border-white/10 hover:border-white/20'
+      }`;
+
+      const initials = candidate.initials || candidate.name.substring(0, 2).toUpperCase();
+      const resolvedAvatar = resolveAvatarUrl(candidate.avatar);
+      const avatarContent = resolvedAvatar
+        ? `<div class="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
+             <img src="${resolvedAvatar}" class="w-full h-full object-cover ring-2 ${isRigged ? 'ring-amber-400' : 'ring-white/20'}" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+             <div class="hidden w-full h-full rounded-full bg-gradient-to-br from-amber-500 to-red-600 flex items-center justify-center font-bold text-xs text-white ring-2 ring-amber-400/50">${initials}</div>
+           </div>`
+        : `<div class="w-10 h-10 rounded-full bg-gradient-to-br ${candidate.color || 'from-amber-500 to-red-600'} flex items-center justify-center font-bold text-xs text-white ring-2 ring-amber-400/50 shrink-0">${initials}</div>`;
+
+      row.innerHTML = `
+        <div class="flex items-center gap-3 min-w-0">
+          ${avatarContent}
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-400">#${index + 1}</span>
+              <span class="text-sm font-bold text-white truncate ${isRigged ? 'text-amber-300' : ''}">${candidate.name}</span>
+              ${isRigged ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-400 text-slate-950 uppercase">Vua chỉ định</span>' : ''}
+            </div>
+            <div class="text-xs text-slate-400 truncate">${candidate.field}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          <!-- Edit Button -->
+          <button type="button" class="btn-edit-candidate p-2 rounded-lg text-slate-400 hover:text-amber-300 hover:bg-white/10 text-xs transition-all" title="Chỉnh sửa tên và nghề nghiệp">
+            <i data-lucide="edit-3" class="w-4 h-4"></i>
+          </button>
+          <!-- Set Rigged Winner Button -->
+          <button type="button" class="btn-set-rigged p-2 rounded-lg ${isRigged ? 'text-amber-400 bg-amber-500/20' : 'text-slate-400 hover:text-amber-300 hover:bg-white/10'} text-xs font-bold transition-all" title="Chỉ định chắc chắn thắng">
+            <i data-lucide="crown" class="w-4 h-4"></i>
+          </button>
+          <!-- Delete Button -->
+          <button type="button" class="btn-delete-candidate p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-white/10 text-xs transition-all" title="Xóa">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      `;
+
+      // Edit Event
+      const btnEdit = row.querySelector('.btn-edit-candidate');
+      btnEdit.onclick = () => this.openCandidateModal(index);
+
+      // Set Rigged Winner
+      const btnSetRigged = row.querySelector('.btn-set-rigged');
+      btnSetRigged.onclick = () => {
+        if (this.mode2Config.riggedWinnerId === candidate.id) {
+          this.mode2Config.riggedWinnerId = "";
+          this.showToast('Đã hủy chỉ định người thắng!');
+        } else {
+          this.mode2Config.riggedWinnerId = candidate.id;
+          this.showToast(`👑 Đã cài đặt [${candidate.name}] thắng tuyệt đối!`);
+        }
+        this.renderStudioMode2();
+      };
+
+      // Delete Candidate
+      const btnDelete = row.querySelector('.btn-delete-candidate');
+      btnDelete.onclick = () => {
+        if (this.mode2Config.roster.length <= 2) {
+          alert('Cần tối thiểu ít nhất 2 nhân vật để tạo giải đấu!');
+          return;
+        }
+        this.mode2Config.roster.splice(index, 1);
+        if (this.mode2Config.riggedWinnerId === candidate.id) {
+          this.mode2Config.riggedWinnerId = "";
+        }
+        this.renderStudioMode2();
+        this.showToast(`Đã xóa [${candidate.name}]`);
+      };
+
+      listContainer.appendChild(row);
+    });
+
+    lucide.createIcons();
+  }
+
+  openCandidateModal(editIndex = null) {
+    const modal = document.getElementById('modal-add-candidate');
+    const modalTitle = document.getElementById('modal-cand-title');
+    const nameInp = document.getElementById('modal-cand-name');
+    const fieldInp = document.getElementById('modal-cand-field');
+    const avatarInp = document.getElementById('modal-cand-avatar');
+    const avatarFileInp = document.getElementById('modal-cand-file');
+    const avatarPreviewImg = document.getElementById('modal-avatar-preview-img');
+    const avatarPreviewInitials = document.getElementById('modal-avatar-preview-initials');
+    const btnSave = document.getElementById('btn-save-candidate');
+    const btnCancel = document.getElementById('btn-cancel-candidate');
+
+    const isEdit = editIndex !== null;
+    const existing = isEdit ? this.mode2Config.roster[editIndex] : null;
+
+    modalTitle.textContent = isEdit ? 'Chỉnh Sửa Thông Tin Nhân Vật' : 'Thêm Nhân Vật Mới';
+    nameInp.value = existing ? existing.name : '';
+    fieldInp.value = existing ? existing.field : '';
+    avatarInp.value = existing ? existing.avatar : '';
+    avatarFileInp.value = '';
+
+    const updatePreview = () => {
+      const rawUrl = avatarInp.value.trim();
+      const resolved = resolveAvatarUrl(rawUrl);
+      if (resolved) {
+        avatarPreviewImg.src = resolved;
+        avatarPreviewImg.classList.remove('hidden');
+        avatarPreviewInitials.classList.add('hidden');
+      } else {
+        avatarPreviewImg.classList.add('hidden');
+        avatarPreviewInitials.classList.remove('hidden');
+        const nameVal = nameInp.value.trim() || 'VIP';
+        avatarPreviewInitials.textContent = nameVal.substring(0, 2).toUpperCase();
+      }
+    };
+
+    updatePreview();
+
+    avatarInp.oninput = () => updatePreview();
+    nameInp.oninput = () => {
+      if (!avatarInp.value.trim()) updatePreview();
+    };
+
+    avatarFileInp.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (loadEvent) => {
+          avatarInp.value = loadEvent.target.result;
+          updatePreview();
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    btnCancel.onclick = () => modal.classList.add('hidden');
+
+    btnSave.onclick = () => {
+      const name = nameInp.value.trim();
+      const field = fieldInp.value.trim() || 'Thần tượng nổi tiếng';
+      const rawAvatar = avatarInp.value.trim();
+      const resolvedAvatar = resolveAvatarUrl(rawAvatar);
+
+      if (!name) {
+        alert('Vui lòng nhập tên nhân vật!');
+        return;
+      }
+
+      const initials = name
+        .split(' ')
+        .map(w => w[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase();
+
+      if (isEdit) {
+        this.mode2Config.roster[editIndex].name = name;
+        this.mode2Config.roster[editIndex].field = field;
+        this.mode2Config.roster[editIndex].avatar = resolvedAvatar;
+        this.mode2Config.roster[editIndex].initials = initials || 'VIP';
+        this.showToast(`Đã cập nhật: ${name}`);
+      } else {
+        const newCandidate = {
+          id: `celeb-${Date.now()}`,
+          name: name,
+          field: field,
+          avatar: resolvedAvatar,
+          initials: initials || 'VIP',
+          color: 'from-amber-400 to-rose-600'
+        };
+        this.mode2Config.roster.push(newCandidate);
+        this.showToast(`Đã thêm thành công: ${name}`);
+      }
+
+      modal.classList.add('hidden');
+      this.renderStudioMode2();
+    };
+
+    modal.classList.remove('hidden');
+  }
+
+  addCreatorAsFinalBoss() {
+    const creatorName = prompt('Nhập tên của bạn (người tạo thử thách):', 'Tôi (Trùm cuối)');
+    if (!creatorName) return;
+
+    const creatorField = prompt('Nhập danh hiệu / nghề nghiệp của bạn:', 'Nhân vật quyền lực nhất');
+    const avatarUrl = prompt('Nhập link ảnh hoặc link YouTube/TikTok của bạn (hoặc để trống):', '');
+
+    const id = `celeb-creator-${Date.now()}`;
+    const initials = creatorName
+      .split(' ')
+      .map(w => w[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+
+    const creatorCandidate = {
+      id: id,
+      name: creatorName,
+      field: creatorField || 'Thần Tượng Bất Tử',
+      avatar: resolveAvatarUrl(avatarUrl),
+      initials: initials || 'ME',
+      color: 'from-amber-400 via-yellow-300 to-red-600'
+    };
+
+    this.mode2Config.roster.push(creatorCandidate);
+    this.mode2Config.riggedWinnerId = id;
+    this.mode2Config.riggedFinalBoss = true;
+
+    this.renderStudioMode2();
+    this.showToast(`🔥 Đã cài đặt [${creatorName}] làm Trùm Cuối và chắc chắn thắng!`);
   }
 
   /* ========================================================
@@ -275,17 +616,16 @@ class App {
     const theme = THEMES[themeKey] || THEMES.love;
     const icons = theme.decorations || ["❤️", "💖", "💕", "💗"];
 
-    // Generate 16 gentle floating symbols across screen
     for (let i = 0; i < 16; i++) {
       const p = document.createElement('div');
       p.className = 'floating-particle';
       const icon = icons[i % icons.length];
       p.textContent = icon;
 
-      const leftPercent = Math.random() * 92 + 4; // 4% to 96%
-      const duration = Math.random() * 7 + 8;     // 8s to 15s
-      const delay = Math.random() * 8;            // 0s to 8s
-      const size = Math.random() * 16 + 18;       // 18px to 34px
+      const leftPercent = Math.random() * 92 + 4;
+      const duration = Math.random() * 7 + 8;
+      const delay = Math.random() * 8;
+      const size = Math.random() * 16 + 18;
 
       p.style.left = `${leftPercent}%`;
       p.style.animationDuration = `${duration}s`;
@@ -297,51 +637,74 @@ class App {
   }
 
   /* ========================================================
-   * PLAYER VIEW GAMEPLAY & BOUNDARY CONTAINMENT
+   * PLAYER VIEW LAUNCHER
    * ======================================================== */
-  startPlayerGame() {
+  previewAsPlayer(mode) {
+    this.currentMode = mode;
+    this.launchPlayerView();
+  }
+
+  launchPlayerView() {
+    evasionEngine.detach();
+    this.currentView = 'player';
+
+    const studioContainer = document.getElementById('creator-studio-container');
+    const playerContainer = document.getElementById('player-experience-container');
+    const playerControls = document.getElementById('player-controls-bar');
+
+    studioContainer.classList.add('hidden');
+    playerContainer.classList.remove('hidden');
+    if (playerControls) playerControls.classList.remove('hidden');
+
+    if (this.currentMode === 'mode1') {
+      this.startMode1PlayerGame();
+    } else {
+      this.startMode2KnockoutGame();
+    }
+
+    lucide.createIcons();
+  }
+
+  /* ========================================================
+   * MODE 1: BẪY TÌNH YÊU PLAY ENGINE
+   * ======================================================== */
+  startMode1PlayerGame() {
     evasionEngine.detach();
     const playerContainer = document.getElementById('player-experience-container');
-    const theme = THEMES[this.config.theme] || THEMES.love;
+    const theme = THEMES[this.mode1Config.theme] || THEMES.love;
 
-    this.renderBackgroundDecorations(this.config.theme);
+    this.renderBackgroundDecorations(this.mode1Config.theme);
 
     playerContainer.className = `min-h-[82vh] flex items-center justify-center p-4 transition-colors duration-500 bg-gradient-to-br ${theme.bgGradient} relative z-10`;
 
     playerContainer.innerHTML = `
       <div id="m1-game-box" class="w-full max-w-xl mx-auto rounded-3xl p-8 md:p-12 text-center border ${theme.cardBorder} ${theme.cardBg} shadow-2xl relative overflow-visible min-h-[380px] md:min-h-[420px] flex flex-col justify-between">
         
-        <!-- Header Tag -->
         <div>
           <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full ${theme.badgeColor} border text-xs font-bold uppercase tracking-wider mb-5">
             <i data-lucide="${theme.icon}" class="w-3.5 h-3.5"></i>
             <span>${theme.name}</span>
           </div>
 
-          <!-- Question Title -->
           <h1 id="m1-display-question" class="text-2xl md:text-4xl font-black text-white mb-3 leading-tight select-none">
-            ${this.escapeHtml(this.config.question)}
+            ${this.escapeHtml(this.mode1Config.question)}
           </h1>
 
-          <!-- Subtitle -->
-          ${this.config.subtitle ? `<p class="text-sm md:text-base text-slate-300 mb-8 max-w-md mx-auto select-none">${this.escapeHtml(this.config.subtitle)}</p>` : '<div class="mb-6"></div>'}
+          ${this.mode1Config.subtitle ? `<p class="text-sm md:text-base text-slate-300 mb-8 max-w-md mx-auto select-none">${this.escapeHtml(this.mode1Config.subtitle)}</p>` : '<div class="mb-6"></div>'}
         </div>
 
         <!-- Buttons Arena: Runaway button jumps strictly inside this game card! -->
         <div id="m1-buttons-arena" class="relative min-h-[140px] flex items-center justify-center gap-6 md:gap-8 my-auto">
           
-          <!-- Target Button (Forced Choice) -->
           <button id="m1-target-btn" type="button" class="relative z-10 px-8 py-4 rounded-2xl font-black text-lg md:text-xl transition-all transform hover:scale-105 active:scale-95 shadow-xl ${theme.targetBtnClass}">
-            ${this.escapeHtml(this.config.targetText)}
+            ${this.escapeHtml(this.mode1Config.targetText)}
           </button>
 
-          <!-- Reject Button (Runaway Choice) -->
           <button id="m1-reject-btn" type="button" class="px-7 py-3.5 rounded-2xl font-bold text-base md:text-lg transition-all ${theme.rejectBtnClass} backdrop-blur-md">
-            ${this.escapeHtml(this.config.rejectText)}
+            ${this.escapeHtml(this.mode1Config.rejectText)}
           </button>
         </div>
 
-        <!-- Hint Footer -->
         <div class="text-xs text-slate-400 flex items-center justify-center gap-1.5 select-none pt-4">
           <i data-lucide="sparkles" class="w-3.5 h-3.5 text-pink-400"></i>
           <span>Hãy chọn câu trả lời thật lòng từ trái tim nhé!</span>
@@ -354,25 +717,23 @@ class App {
     const rejectBtn = document.getElementById('m1-reject-btn');
     const targetBtn = document.getElementById('m1-target-btn');
 
-    // Attach Evasion Engine to Reject button
     evasionEngine.attach(rejectBtn, {
       proximityRadius: window.innerWidth < 768 ? 60 : 80,
       quips: DEFAULT_RUNAWAY_QUIPS
     });
 
-    // Clicking Target Button triggers Celebration
     targetBtn.onclick = () => {
       evasionEngine.detach();
-      this.celebratePlayer();
+      this.celebrateMode1();
     };
   }
 
-  celebratePlayer() {
+  celebrateMode1() {
     sounds.playSuccess();
     this.triggerConfetti();
 
     const gameBox = document.getElementById('m1-game-box');
-    const theme = THEMES[this.config.theme] || THEMES.love;
+    const theme = THEMES[this.mode1Config.theme] || THEMES.love;
 
     gameBox.innerHTML = `
       <div class="space-y-6 animate-pop-in my-auto">
@@ -382,16 +743,15 @@ class App {
         </div>
 
         <h2 class="text-2xl md:text-4xl font-black text-white leading-tight">
-          ${this.escapeHtml(this.config.celebrationTitle)}
+          ${this.escapeHtml(this.mode1Config.celebrationTitle)}
         </h2>
 
-        <!-- Celebration GIF -->
         <div class="w-full max-w-sm mx-auto h-64 rounded-2xl overflow-hidden border-2 ${theme.cardBorder} shadow-2xl relative bg-slate-950">
-          <img src="${this.config.celebrationGif}" alt="Celebration GIF" class="w-full h-full object-cover" onerror="this.src='https://media.giphy.com/media/MDJ9IbxxvDUQM/giphy.gif'" />
+          <img src="${this.mode1Config.celebrationGif}" alt="Celebration GIF" class="w-full h-full object-cover" onerror="this.src='https://media.giphy.com/media/MDJ9IbxxvDUQM/giphy.gif'" />
         </div>
 
         <p class="text-base md:text-lg text-slate-200 leading-relaxed max-w-md mx-auto">
-          ${this.escapeHtml(this.config.celebrationMessage)}
+          ${this.escapeHtml(this.mode1Config.celebrationMessage)}
         </p>
 
         <div class="pt-4 flex items-center justify-center gap-4">
@@ -401,7 +761,7 @@ class App {
           </button>
           <button id="m1-share-btn" type="button" class="px-6 py-3 rounded-xl ${theme.targetBtnClass} font-bold text-sm transition-all flex items-center gap-2">
             <i data-lucide="share-2" class="w-4 h-4"></i>
-            <span>Gửi câu này cho người khác</span>
+            <span>Chia sẻ câu này</span>
           </button>
         </div>
       </div>
@@ -410,26 +770,295 @@ class App {
     lucide.createIcons();
 
     document.getElementById('m1-replay-btn').onclick = () => {
-      this.startPlayerGame();
+      this.startMode1PlayerGame();
     };
 
     document.getElementById('m1-share-btn').onclick = () => {
-      this.generateAndCopyShareLink();
+      this.generateAndCopyShareLink('mode1');
     };
+  }
+
+  /* ========================================================
+   * MODE 2: ĐẠI CHIẾN THẦN TƯỢNG PLAY ENGINE
+   * ======================================================== */
+  startMode2KnockoutGame() {
+    evasionEngine.detach();
+    const roster = JSON.parse(JSON.stringify(this.mode2Config.roster));
+
+    if (roster.length < 2) {
+      alert('Danh sách cần tối thiểu 2 người!');
+      this.switchStudioMode('mode2');
+      return;
+    }
+
+    this.renderBackgroundDecorations('luxury');
+
+    const riggedId = this.mode2Config.riggedWinnerId;
+    const finalBossMode = this.mode2Config.riggedFinalBoss;
+
+    let finalBoss = null;
+    let pool = [...roster];
+
+    if (riggedId && finalBossMode) {
+      const bossIdx = pool.findIndex(c => c.id === riggedId);
+      if (bossIdx !== -1) {
+        finalBoss = pool.splice(bossIdx, 1)[0];
+      }
+    }
+
+    const candidate1 = pool.shift();
+    const candidate2 = pool.shift();
+
+    if (finalBoss) {
+      pool.push(finalBoss);
+    }
+
+    this.mode2Game = {
+      queue: pool,
+      candidate1: candidate1,
+      candidate2: candidate2,
+      roundNumber: 1,
+      totalRounds: roster.length - 1,
+      isFinished: false,
+      winner: null
+    };
+
+    this.renderMode2Duel();
+  }
+
+  renderMode2Duel() {
+    evasionEngine.detach();
+    const playerContainer = document.getElementById('player-experience-container');
+    playerContainer.className = 'min-h-[82vh] p-4 flex items-center justify-center bg-gradient-to-br from-slate-950 via-zinc-950 to-neutral-950 relative z-10';
+
+    const { candidate1, candidate2, roundNumber, totalRounds } = this.mode2Game;
+    const isFinalRound = this.mode2Game.queue.length === 0;
+
+    const riggedId = this.mode2Config.riggedWinnerId;
+    const isCand1Rigged = riggedId && candidate1.id === riggedId;
+    const isCand2Rigged = riggedId && candidate2.id === riggedId;
+    const isRiggedMatch = isCand1Rigged || isCand2Rigged;
+
+    playerContainer.innerHTML = `
+      <div class="w-full max-w-4xl mx-auto space-y-6">
+        
+        <!-- Header & Progress -->
+        <div class="text-center space-y-2">
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-xs font-black uppercase tracking-wider">
+            <i data-lucide="flame" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>${isFinalRound ? 'TRẬN CHUNG KẾT ĐỈNH CAO' : `LƯỢT ĐỐI ĐẦU ${roundNumber} / ${totalRounds}`}</span>
+          </div>
+
+          <h1 class="text-2xl md:text-4xl font-black text-white">
+            ${this.escapeHtml(this.mode2Config.title)}
+          </h1>
+          <p class="text-xs md:text-sm text-slate-400">
+            ${this.escapeHtml(this.mode2Config.subtitle)}
+          </p>
+
+          <div class="w-full max-w-md mx-auto bg-slate-900 rounded-full h-2.5 overflow-hidden border border-white/10 mt-3">
+            <div class="bg-gradient-to-r from-amber-500 to-yellow-400 h-full transition-all duration-500" style="width: ${(roundNumber / totalRounds) * 100}%"></div>
+          </div>
+        </div>
+
+        <!-- Symmetrical Prestigious Duel Cards -->
+        <div id="m2-arena" class="relative grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-center justify-center pt-2">
+          
+          <!-- LEFT CARD -->
+          <div id="card-cand-1" class="carpet-card glass-panel-gold rounded-3xl p-6 text-center border border-amber-400/40 cursor-pointer select-none group relative">
+            <div class="w-32 h-32 md:w-44 md:h-44 mx-auto rounded-2xl overflow-hidden my-4 border-2 border-amber-400/60 shadow-2xl relative bg-slate-900 ring-2 ring-amber-400/20">
+              ${this.renderCardImage(candidate1)}
+            </div>
+
+            <h3 class="text-xl md:text-2xl font-black text-white group-hover:text-amber-300 transition-colors">
+              ${this.escapeHtml(candidate1.name)}
+            </h3>
+            <p class="text-xs md:text-sm text-slate-300 mt-1 mb-5">
+              ${this.escapeHtml(candidate1.field)}
+            </p>
+
+            <button type="button" class="w-full py-3.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/30 group-hover:shadow-amber-400/60 transition-all flex items-center justify-center gap-2">
+              <i data-lucide="crown" class="w-4 h-4"></i>
+              <span>BÌNH CHỌN ${this.escapeHtml(candidate1.name)}</span>
+            </button>
+          </div>
+
+          <!-- Center VS Badge -->
+          <div class="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+            <div class="w-16 h-16 rounded-full bg-slate-950 border-2 border-amber-400 flex items-center justify-center vs-badge shadow-2xl">
+              <span class="text-xl font-black italic gold-text">VS</span>
+            </div>
+          </div>
+
+          <!-- RIGHT CARD -->
+          <div id="card-cand-2" class="carpet-card glass-panel-gold rounded-3xl p-6 text-center border border-amber-400/40 cursor-pointer select-none group relative">
+            <div class="w-32 h-32 md:w-44 md:h-44 mx-auto rounded-2xl overflow-hidden my-4 border-2 border-amber-400/60 shadow-2xl relative bg-slate-900 ring-2 ring-amber-400/20">
+              ${this.renderCardImage(candidate2)}
+            </div>
+
+            <h3 class="text-xl md:text-2xl font-black text-white group-hover:text-amber-300 transition-colors">
+              ${this.escapeHtml(candidate2.name)}
+            </h3>
+            <p class="text-xs md:text-sm text-slate-300 mt-1 mb-5">
+              ${this.escapeHtml(candidate2.field)}
+            </p>
+
+            <button type="button" class="w-full py-3.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/30 group-hover:shadow-amber-400/60 transition-all flex items-center justify-center gap-2">
+              <i data-lucide="crown" class="w-4 h-4"></i>
+              <span>BÌNH CHỌN ${this.escapeHtml(candidate2.name)}</span>
+            </button>
+          </div>
+
+        </div>
+
+        <div class="text-center text-xs text-slate-400 pt-2">
+          Còn lại <strong>${this.mode2Game.queue.length}</strong> gương mặt đang chờ so tài
+        </div>
+      </div>
+    `;
+
+    lucide.createIcons();
+
+    const card1 = document.getElementById('card-cand-1');
+    const card2 = document.getElementById('card-cand-2');
+
+    // Rigged Evasion Mechanic
+    if (isRiggedMatch) {
+      const favoredCand = isCand1Rigged ? candidate1 : candidate2;
+      const favoredCard = isCand1Rigged ? card1 : card2;
+      const rivalCard = isCand1Rigged ? card2 : card1;
+
+      evasionEngine.attach(rivalCard, {
+        proximityRadius: 90,
+        quips: [
+          `Ủa tính chọn đối thủ hả? ${favoredCand.name} mới là Số 1! 👑`,
+          "Không có cửa bấm vào đây đâu nha! 😜",
+          "Thần tượng chiến thắng đã định đoạt rồi! 👉",
+          "Bấm người bên kia kìa haha! 🏃‍♂️💨"
+        ]
+      });
+
+      favoredCard.onclick = () => {
+        evasionEngine.detach();
+        sounds.playSelect();
+        this.selectCandidateWinner(favoredCand);
+      };
+    } else {
+      card1.onclick = () => {
+        sounds.playSelect();
+        this.selectCandidateWinner(candidate1);
+      };
+
+      card2.onclick = () => {
+        sounds.playWhoosh();
+        this.selectCandidateWinner(candidate2);
+      };
+    }
+  }
+
+  selectCandidateWinner(winnerCand) {
+    const { queue } = this.mode2Game;
+
+    if (queue.length > 0) {
+      this.mode2Game.candidate1 = winnerCand;
+      this.mode2Game.candidate2 = queue.shift();
+      this.mode2Game.roundNumber++;
+      this.renderMode2Duel();
+    } else {
+      this.mode2Game.isFinished = true;
+      this.mode2Game.winner = winnerCand;
+      this.crownChampion();
+    }
+  }
+
+  crownChampion() {
+    evasionEngine.detach();
+    sounds.playFanfare();
+    this.triggerConfetti();
+
+    const playerContainer = document.getElementById('player-experience-container');
+    const winner = this.mode2Game.winner;
+
+    playerContainer.innerHTML = `
+      <div class="w-full max-w-2xl mx-auto glass-panel-gold rounded-3xl p-8 md:p-12 text-center border border-amber-400 shadow-2xl relative overflow-hidden animate-pop-in my-auto">
+        
+        <div class="text-6xl trophy-glow my-3">👑</div>
+
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-black uppercase tracking-wider mb-4">
+          <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i>
+          <span>THẦN TƯỢNG QUÁN QUÂN SỐ 1</span>
+        </div>
+
+        <div class="w-40 h-40 md:w-52 md:h-52 mx-auto rounded-3xl overflow-hidden border-4 border-amber-400 shadow-2xl relative my-6 bg-slate-900 ring-8 ring-amber-400/20">
+          ${this.renderCardImage(winner)}
+        </div>
+
+        <h2 class="text-3xl md:text-5xl font-black gold-text mb-2">
+          ${this.escapeHtml(winner.name)}
+        </h2>
+        <p class="text-base text-slate-300 font-medium mb-8">
+          ${this.escapeHtml(winner.field)}
+        </p>
+
+        <div class="flex flex-wrap items-center justify-center gap-4">
+          <button id="m2-restart-btn" type="button" class="px-8 py-4 rounded-2xl font-black text-base bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-xl shadow-amber-500/40 hover:shadow-amber-400/70 transition-all flex items-center gap-2">
+            <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+            <span>CHƠI LẠI TỪ ĐẦU</span>
+          </button>
+          
+          <button id="m2-share-btn" type="button" class="px-7 py-4 rounded-2xl font-bold text-base bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all flex items-center gap-2">
+            <i data-lucide="share-2" class="w-5 h-5"></i>
+            <span>Chia sẻ kết quả này</span>
+          </button>
+        </div>
+
+      </div>
+    `;
+
+    lucide.createIcons();
+
+    document.getElementById('m2-restart-btn').onclick = () => {
+      this.startMode2KnockoutGame();
+    };
+
+    document.getElementById('m2-share-btn').onclick = () => {
+      this.generateAndCopyShareLink('mode2');
+    };
+  }
+
+  renderCardImage(candidate) {
+    const initials = candidate.initials || candidate.name.substring(0, 2).toUpperCase();
+    const resolvedAvatar = resolveAvatarUrl(candidate.avatar);
+    if (resolvedAvatar) {
+      return `
+        <div class="w-full h-full relative">
+          <img src="${resolvedAvatar}" alt="${this.escapeHtml(candidate.name)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <div class="hidden w-full h-full flex flex-col items-center justify-center font-black text-3xl md:text-5xl bg-gradient-to-br from-amber-500 to-red-600 text-white">
+            ${initials}
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div class="w-full h-full flex flex-col items-center justify-center font-black text-3xl md:text-5xl bg-gradient-to-br ${candidate.color || 'from-amber-500 to-red-600'} text-white">
+        ${initials}
+      </div>
+    `;
   }
 
   /* ========================================================
    * SHARING & QR CODE FOR MOBILE & PC
    * ======================================================== */
-  generateAndCopyShareLink() {
-    const serialized = serializeConfig('love', this.config);
+  generateAndCopyShareLink(mode = 'mode1') {
+    const config = mode === 'mode1' ? this.mode1Config : this.mode2Config;
+    const serialized = serializeConfig(mode, config);
     if (!serialized) {
       alert('Lỗi tạo link chia sẻ!');
       return;
     }
 
     const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
-    const shareUrl = `${publicBase}?play=1&data=${serialized}`;
+    const shareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(shareUrl).catch(() => {});

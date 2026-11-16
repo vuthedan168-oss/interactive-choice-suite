@@ -2,6 +2,137 @@
  * Data presets and configuration models for Love Choice Suite
  */
 
+const DEFAULT_CELEBRITIES = [
+  {
+    id: "celeb-1",
+    name: "Sơn Tùng M-TP",
+    field: "Ca sĩ / Chủ tịch M-TP Ent",
+    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80",
+    initials: "ST",
+    color: "from-amber-500 to-red-600"
+  },
+  {
+    id: "celeb-2",
+    name: "Cristiano Ronaldo",
+    field: "Huyền thoại bóng đá thế giới (CR7)",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=500&q=80",
+    initials: "CR7",
+    color: "from-red-600 to-emerald-600"
+  },
+  {
+    id: "celeb-3",
+    name: "Lionel Messi",
+    field: "Huyền thoại bóng đá đương đại (LM10)",
+    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=500&q=80",
+    initials: "LM10",
+    color: "from-sky-500 to-blue-700"
+  },
+  {
+    id: "celeb-4",
+    name: "Blackpink Lisa",
+    field: "Idol / Biểu tượng văn hoá quốc tế",
+    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=500&q=80",
+    initials: "LS",
+    color: "from-pink-500 to-purple-600"
+  },
+  {
+    id: "celeb-5",
+    name: "Taylor Swift",
+    field: "Biểu tượng âm nhạc toàn cầu",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=500&q=80",
+    initials: "TS",
+    color: "from-amber-400 to-pink-600"
+  },
+  {
+    id: "celeb-6",
+    name: "Trấn Thành",
+    field: "MC / Đạo diễn điện ảnh tỷ đô",
+    avatar: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=500&q=80",
+    initials: "TT",
+    color: "from-violet-600 to-indigo-700"
+  },
+  {
+    id: "celeb-7",
+    name: "HIEUTHUHAI",
+    field: "Rapper / Ngôi sao thế hệ mới",
+    avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=500&q=80",
+    initials: "H2",
+    color: "from-cyan-500 to-blue-600"
+  },
+  {
+    id: "celeb-8",
+    name: "Mỹ Tâm",
+    field: "Ca sĩ quốc dân / Họa mi tóc nâu",
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=500&q=80",
+    initials: "MT",
+    color: "from-rose-500 to-amber-600"
+  },
+  {
+    id: "celeb-9",
+    name: "Faker (Lee Sang-hyeok)",
+    field: "Quỷ vương bất tử Esports T1",
+    avatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=500&q=80",
+    initials: "FK",
+    color: "from-red-600 to-rose-700"
+  },
+  {
+    id: "celeb-10",
+    name: "Tom Cruise",
+    field: "Siêu sao điện ảnh hành động Hollywood",
+    avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=500&q=80",
+    initials: "TC",
+    color: "from-amber-600 to-neutral-700"
+  },
+  {
+    id: "celeb-11",
+    name: "Zendaya",
+    field: "Diễn viên / Biểu tượng thảm đỏ",
+    avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=500&q=80",
+    initials: "ZD",
+    color: "from-fuchsia-600 to-purple-800"
+  },
+  {
+    id: "celeb-12",
+    name: "Leonardo DiCaprio",
+    field: "Tài tử điện ảnh giải Oscar",
+    avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=500&q=80",
+    initials: "LD",
+    color: "from-emerald-600 to-teal-800"
+  },
+  {
+    id: "celeb-13",
+    name: "Độ Mixi",
+    field: "Streamer / Tộc trưởng Bộ tộc Mixi",
+    avatar: "https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=500&q=80",
+    initials: "DM",
+    color: "from-orange-500 to-red-700"
+  },
+  {
+    id: "celeb-14",
+    name: "Elon Musk",
+    field: "Doanh nhân công nghệ / CEO SpaceX",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=500&q=80",
+    initials: "EM",
+    color: "from-zinc-600 to-slate-900"
+  },
+  {
+    id: "celeb-15",
+    name: "IU (Lee Ji-eun)",
+    field: "Em gái quốc dân / Ca sĩ - Diễn viên",
+    avatar: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=500&q=80",
+    initials: "IU",
+    color: "from-pink-400 to-rose-500"
+  },
+  {
+    id: "celeb-16",
+    name: "MONO",
+    field: "Nghệ sĩ trẻ / Ca sĩ Gen Z",
+    avatar: "https://images.unsplash.com/photo-1463453091185-61582044d556?auto=format&fit=crop&w=500&q=80",
+    initials: "MO",
+    color: "from-purple-500 to-indigo-600"
+  }
+];
+
 const THEMES = {
   love: {
     id: "love",
@@ -125,6 +256,60 @@ const DEFAULT_MODE1_CONFIG = {
   celebrationMessage: "Từ nay cậu chính thức là người quan trọng nhất trong lòng tớ đó! Hứa là sẽ luôn làm cậu cười mỗi ngày! 🥰",
   celebrationGif: CURATED_GIFS[0].url
 };
+
+const DEFAULT_MODE2_CONFIG = {
+  title: "ĐẠI CHIẾN THẦN TƯỢNG",
+  subtitle: "Ai là nhân vật xứng đáng đăng quang ngôi vị thần tượng số 1 trong lòng bạn?",
+  roster: [...DEFAULT_CELEBRITIES],
+  riggedWinnerId: "",
+  riggedFinalBoss: true,
+  customRiggedName: "Tôi (Người tạo thử thách)",
+  customRiggedField: "Nhân vật bí ẩn bất khả chiến bại",
+  customRiggedAvatar: ""
+};
+
+/**
+ * Smart Avatar URL Resolver:
+ * Automatically resolves YouTube channel links (@username), YouTube videos,
+ * TikTok, Twitter/X, and GitHub usernames to direct high-resolution avatar URLs!
+ */
+function resolveAvatarUrl(url) {
+  if (!url) return '';
+  url = url.trim();
+
+  // 1. YouTube Channel: e.g. https://www.youtube.com/@captainofficial3180
+  const ytChannelMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/@([a-zA-Z0-9_\-\.]+)/i);
+  if (ytChannelMatch && ytChannelMatch[1]) {
+    return `https://unavatar.io/youtube/${ytChannelMatch[1]}`;
+  }
+
+  // 2. YouTube Video: e.g. https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID
+  const ytVideoMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([a-zA-Z0-9_-]{11})/i);
+  if (ytVideoMatch && ytVideoMatch[1]) {
+    return `https://img.youtube.com/vi/${ytVideoMatch[1]}/hqdefault.jpg`;
+  }
+
+  // 3. TikTok: https://www.tiktok.com/@username
+  const ttMatch = url.match(/(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@([a-zA-Z0-9_\-\.]+)/i);
+  if (ttMatch && ttMatch[1]) {
+    return `https://unavatar.io/tiktok/${ttMatch[1]}`;
+  }
+
+  // 4. Twitter / X: https://x.com/username or https://twitter.com/username
+  const twMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/([a-zA-Z0-9_]+)/i);
+  if (twMatch && twMatch[1] && !['home', 'explore', 'notifications', 'messages'].includes(twMatch[1].toLowerCase())) {
+    return `https://unavatar.io/twitter/${twMatch[1]}`;
+  }
+
+  // 5. GitHub: https://github.com/username
+  const ghMatch = url.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_\-]+)/i);
+  if (ghMatch && ghMatch[1] && !['settings', 'notifications', 'marketplace'].includes(ghMatch[1].toLowerCase())) {
+    return `https://unavatar.io/github/${ghMatch[1]}`;
+  }
+
+  // 6. Direct image URL or fallback
+  return url;
+}
 
 /**
  * URL State Serialization
