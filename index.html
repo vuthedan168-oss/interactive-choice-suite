@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Love Choice - Bẫy Tình Yêu & Đại Chiến Thần Tượng</title>
   
+  <!-- Google Fonts: Be Vietnam Pro & Plus Jakarta Sans (Full Vietnamese Typography) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -49,9 +54,16 @@
       </button>
     </div>
 
-    <!-- Right Controls: Sound Toggle ONLY -->
-    <div class="flex items-center gap-3">
-      <button id="btn-sound-toggle" type="button" class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition-all" title="Bật/Tắt âm thanh">
+    <!-- Right Controls: Background Music & Sound Toggle -->
+    <div class="flex items-center gap-2.5">
+      <!-- Music BGM Toggle -->
+      <button id="btn-bgm-toggle" type="button" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 border border-pink-400/30 text-pink-300 text-xs font-bold transition-all shadow-sm" title="Bật/Tắt nhạc nền vui tươi">
+        <i data-lucide="music" class="w-3.5 h-3.5 text-pink-400"></i>
+        <span id="bgm-status-text">Bật Nhạc</span>
+      </button>
+
+      <!-- Sound FX Toggle -->
+      <button id="btn-sound-toggle" type="button" class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition-all" title="Bật/Tắt hiệu ứng âm thanh">
         <i data-lucide="volume-2" class="w-4 h-4"></i>
       </button>
     </div>

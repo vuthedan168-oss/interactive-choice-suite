@@ -1,13 +1,14 @@
 /**
  * Runaway Physics & Proximity Evasion Engine
- * Handles dodging physics across the entire visible interface.
- * Strictly guarantees the button stays fully within screen boundaries and never disappears.
+ * Automatically moves runaway element to document.body to prevent backdrop-filter CSS trapping,
+ * guaranteeing the button jumps dynamically across the entire device screen without ever disappearing.
  */
 
 class EvasionEngine {
   constructor() {
     this.activeElement = null;
-    this.container = null;
+    this.originalParent = null;
+    this.originalNextSibling = null;
     this.evasionCount = 0;
     this.quips = [...DEFAULT_RUNAWAY_QUIPS];
     this.boundListeners = [];
@@ -23,7 +24,8 @@ class EvasionEngine {
     if (!element) return;
 
     this.activeElement = element;
-    this.container = options.container || document.body;
+    this.originalParent = element.parentElement;
+    this.originalNextSibling = element.nextElementSibling;
     this.evasionCount = 0;
     this.proximityRadius = options.proximityRadius || (window.innerWidth < 768 ? 65 : 85);
     if (options.quips) {
@@ -76,9 +78,21 @@ class EvasionEngine {
       this.activeElement.style.width = '';
       this.activeElement.style.transform = '';
       this.activeElement.style.zIndex = '';
+
+      // Restore to original parent if moved
+      if (this.originalParent && this.activeElement.parentElement === document.body) {
+        if (this.originalNextSibling && this.originalNextSibling.parentNode === this.originalParent) {
+          this.originalParent.insertBefore(this.activeElement, this.originalNextSibling);
+        } else {
+          this.originalParent.appendChild(this.activeElement);
+        }
+      }
+
       this.activeElement = null;
     }
 
+    this.originalParent = null;
+    this.originalNextSibling = null;
     this.evasionCount = 0;
   }
 
@@ -123,26 +137,31 @@ class EvasionEngine {
 
     sounds.playBoing();
 
-    // 1. Get exact viewport bounds (accounting for mobile visual viewport)
+    // CRITICAL: Re-parent to document.body on first dodge so no parent backdrop-filter/transform can trap it!
+    if (this.activeElement.parentElement !== document.body) {
+      document.body.appendChild(this.activeElement);
+    }
+
+    // 1. Get exact viewport bounds
     const vpW = window.visualViewport ? window.visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
     const vpH = window.visualViewport ? window.visualViewport.height : (document.documentElement.clientHeight || window.innerHeight);
 
     // 2. Measure button size
     const rect = this.activeElement.getBoundingClientRect();
-    const elemW = rect.width || 140;
+    const elemW = Math.min(vpW * 0.7, rect.width || 140);
     const elemH = rect.height || 48;
 
-    // 3. Strict safe margins across the ENTIRE INTERFACE so it jumps everywhere but NEVER clips
-    const padX = Math.max(20, Math.min(36, vpW * 0.04));
+    // 3. Strict safe margins: button jumps across ENTIRE screen but NEVER clips or falls out
+    const padX = Math.max(20, Math.min(32, vpW * 0.04));
     const padTop = 85;   // Below top header bar
-    const padBottom = Math.max(30, Math.min(50, vpH * 0.05)); // Above bottom edge
+    const padBottom = Math.max(30, Math.min(50, vpH * 0.06)); // Above bottom screen edge
 
     const minX = padX;
     const maxX = Math.max(minX + 20, vpW - elemW - padX);
     const minY = padTop;
     const maxY = Math.max(minY + 20, vpH - elemH - padBottom);
 
-    // 4. Pointer reference
+    // 4. Pointer position reference
     const cursorX = (e && e.clientX !== undefined) ? e.clientX : (rect.left + elemW / 2);
     const cursorY = (e && e.clientY !== undefined) ? e.clientY : (rect.top + elemH / 2);
 
@@ -199,6 +218,7 @@ class EvasionEngine {
     const bubbleEstimateW = Math.min(220, vpW - 32);
     let bubbleX = Math.round(Math.max(16, Math.min(vpW - bubbleEstimateW - 16, x + (w / 2) - (bubbleEstimateW / 2))));
     
+    // Position bubble above or below the button depending on position
     let bubbleY = y - 44;
     if (bubbleY < padTop) {
       bubbleY = y + h + 10;

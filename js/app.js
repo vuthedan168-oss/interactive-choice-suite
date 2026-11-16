@@ -77,7 +77,7 @@ class App {
   }
 
   bindGlobalEvents() {
-    // Sound toggle
+    // Sound FX toggle
     const soundToggle = document.getElementById('btn-sound-toggle');
     if (soundToggle) {
       soundToggle.addEventListener('click', () => {
@@ -87,9 +87,42 @@ class App {
           icon.setAttribute('data-lucide', this.isMuted ? 'volume-x' : 'volume-2');
           lucide.createIcons();
         }
-        this.showToast(this.isMuted ? 'Đã tắt âm thanh' : 'Đã bật âm thanh');
+        this.showToast(this.isMuted ? 'Đã tắt hiệu ứng âm thanh' : 'Đã bật hiệu ứng âm thanh');
       });
     }
+
+    // BGM Music toggle
+    const bgmToggle = document.getElementById('btn-bgm-toggle');
+    const bgmText = document.getElementById('bgm-status-text');
+    if (bgmToggle) {
+      bgmToggle.addEventListener('click', () => {
+        const isPlaying = sounds.toggleBgm();
+        if (isPlaying) {
+          bgmToggle.classList.add('bg-pink-500/30', 'border-pink-400');
+          bgmToggle.classList.remove('bg-pink-500/15');
+          const musicIcon = bgmToggle.querySelector('[data-lucide="music"]');
+          if (musicIcon) musicIcon.classList.add('music-playing');
+          if (bgmText) bgmText.textContent = 'Tắt Nhạc';
+          this.showToast('🎵 Đã bật nhạc nền vui vẻ!');
+        } else {
+          bgmToggle.classList.remove('bg-pink-500/30', 'border-pink-400');
+          bgmToggle.classList.add('bg-pink-500/15');
+          const musicIcon = bgmToggle.querySelector('[data-lucide="music"]');
+          if (musicIcon) musicIcon.classList.remove('music-playing');
+          if (bgmText) bgmText.textContent = 'Bật Nhạc';
+          this.showToast('🔇 Đã tắt nhạc nền');
+        }
+      });
+    }
+
+    // Initialize audio on first user touch/click
+    const onFirstUserGesture = () => {
+      sounds.init();
+      window.removeEventListener('pointerdown', onFirstUserGesture);
+      window.removeEventListener('keydown', onFirstUserGesture);
+    };
+    window.addEventListener('pointerdown', onFirstUserGesture, { once: true });
+    window.addEventListener('keydown', onFirstUserGesture, { once: true });
 
     // Brand Logo Button (Click to open Giao Diện Tạo Thiệp)
     const btnBrandHome = document.getElementById('btn-brand-home');
