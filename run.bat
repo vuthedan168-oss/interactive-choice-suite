@@ -1,11 +1,14 @@
 @echo off
-title Nexus Choice Suite
+title Love Game - Nexus Choice Suite
 echo ========================================================
-echo  NEXUS CHOICE SUITE - Nút Chay Tron va Vua Giu Dai
+echo  LOVE GAME - NEXUS CHOICE SUITE
+echo  Thu muc: C:\Users\Dell\Downloads\Antigravity\Love Game
 echo ========================================================
 echo.
-echo Dang khoi dong may chu tai http://localhost:8080 ...
-echo Ban co the mo trinh duyet va truy cap http://localhost:8080
+echo Link web truc tiep cho dien thoai:
+echo https://vuthedan168-oss.github.io/interactive-choice-suite/
+echo.
+echo May chu local (may tinh): http://localhost:8080
 echo.
 python -m http.server 8080
 pause

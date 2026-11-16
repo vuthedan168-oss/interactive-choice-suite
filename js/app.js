@@ -1019,18 +1019,49 @@ class App {
       return;
     }
 
-    const currentUrl = new URL(window.location.href);
-    currentUrl.search = `?play=1&mode=${mode}&data=${serialized}`;
-    currentUrl.hash = '';
+    // Always use public GitHub Pages URL so mobile phones & external users can open directly
+    const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
+    const shareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
 
-    const shareUrl = currentUrl.toString();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareUrl).catch(() => {});
+    }
 
-    // Copy to clipboard
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      this.showToast('🎉 Đã sao chép link người chơi vào bộ nhớ tạm! Bạn có thể dán và gửi cho bạn bè ngay.');
-    }).catch(() => {
-      prompt('Hãy sao chép link người chơi dưới đây:', shareUrl);
-    });
+    this.openShareModal(shareUrl, mode);
+  }
+
+  openShareModal(shareUrl, mode) {
+    const modal = document.getElementById('modal-share-link');
+    const input = document.getElementById('share-url-input');
+    const qrImg = document.getElementById('share-qr-image');
+    const openBtn = document.getElementById('btn-open-share-link');
+    const copyBtn = document.getElementById('btn-copy-modal-link');
+
+    if (input) input.value = shareUrl;
+    if (qrImg) {
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(shareUrl)}`;
+    }
+    if (openBtn) {
+      openBtn.onclick = () => window.open(shareUrl, '_blank');
+    }
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shareUrl).then(() => {
+            this.showToast('🎉 Đã sao chép link người chơi!');
+          });
+        } else {
+          input.select();
+          document.execCommand('copy');
+          this.showToast('🎉 Đã sao chép link người chơi!');
+        }
+      };
+    }
+
+    if (modal) {
+      modal.classList.remove('hidden');
+    }
+    this.showToast('🎉 Đã tạo link người chơi dùng được trên cả điện thoại!');
   }
 
   showToast(message) {

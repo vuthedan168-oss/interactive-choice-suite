@@ -1,6 +1,7 @@
 /**
  * Runaway Physics & Proximity Evasion Engine
  * Handles dodging physics for both the Mode 1 reject button and Mode 2 rigged rival card.
+ * Strictly guarantees elements stay within the user's visible screen boundary.
  */
 
 class EvasionEngine {
@@ -10,11 +11,11 @@ class EvasionEngine {
     this.evasionCount = 0;
     this.quips = [...DEFAULT_RUNAWAY_QUIPS];
     this.boundListeners = [];
-    this.isDodging = false;
     this.lastDodgeTime = 0;
-    this.cooldownMs = 120;
-    this.proximityRadius = 85;
+    this.cooldownMs = 80;
+    this.proximityRadius = 80;
     this.speechBubble = null;
+    this.bubbleTimer = null;
   }
 
   attach(element, options = {}) {
@@ -24,7 +25,7 @@ class EvasionEngine {
     this.activeElement = element;
     this.container = options.container || document.body;
     this.evasionCount = 0;
-    this.proximityRadius = options.proximityRadius || 85;
+    this.proximityRadius = options.proximityRadius || (window.innerWidth < 768 ? 65 : 85);
     if (options.quips) {
       this.quips = options.quips;
     }
@@ -40,8 +41,9 @@ class EvasionEngine {
     window.addEventListener('mousemove', onPointerMove, { passive: true });
     this.activeElement.addEventListener('mouseenter', onMouseEnter);
     this.activeElement.addEventListener('touchstart', onTouchStart, { passive: false });
+    this.activeElement.addEventListener('pointerdown', onTouchStart, { passive: false });
     this.activeElement.addEventListener('click', (e) => {
-      // Emergency failsafe: if somehow clicked, cancel click and dodge immediately!
+      // Failsafe: if clicked, cancel event and dodge immediately
       e.preventDefault();
       e.stopPropagation();
       this.dodge(e);
@@ -50,7 +52,8 @@ class EvasionEngine {
     this.boundListeners = [
       { target: window, event: 'mousemove', fn: onPointerMove },
       { target: this.activeElement, event: 'mouseenter', fn: onMouseEnter },
-      { target: this.activeElement, event: 'touchstart', fn: onTouchStart }
+      { target: this.activeElement, event: 'touchstart', fn: onTouchStart },
+      { target: this.activeElement, event: 'pointerdown', fn: onTouchStart }
     ];
   }
 
@@ -105,6 +108,7 @@ class EvasionEngine {
 
   handleTouch(e) {
     e.preventDefault();
+    e.stopPropagation();
     if (e.touches && e.touches[0]) {
       this.dodge(e.touches[0]);
     } else {
@@ -115,112 +119,109 @@ class EvasionEngine {
   dodge(e = null) {
     if (!this.activeElement) return;
     const now = Date.now();
-    if (now - this.lastDodgeTime < 100) return;
+    if (now - this.lastDodgeTime < 70) return;
     this.lastDodgeTime = now;
     this.evasionCount++;
 
     sounds.playBoing();
 
+    // 1. Get exact visible viewport dimensions (accounting for mobile visual viewport)
+    const vpW = window.visualViewport ? window.visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
+    const vpH = window.visualViewport ? window.visualViewport.height : (document.documentElement.clientHeight || window.innerHeight);
+
+    // 2. Measure element
     const rect = this.activeElement.getBoundingClientRect();
-    const elemW = rect.width || 140;
+    const elemW = Math.min(vpW * 0.75, rect.width || 135);
     const elemH = rect.height || 48;
 
-    // Viewport safe bounds
-    const margin = 24;
-    const topOffset = 80; // keep below header
-    const maxW = window.innerWidth - elemW - margin;
-    const maxH = window.innerHeight - elemH - margin;
+    // 3. Strict safe margins from all screen edges
+    const padX = Math.max(16, Math.min(28, vpW * 0.05));
+    const padTop = 85;   // Below top header bar
+    const padBottom = 80; // Above mobile bottom browser bar / home indicator
 
-    let targetX, targetY;
+    const safeW = elemW + 16; // extra buffer for rotation
+    const safeH = elemH + 16;
 
-    if (e && e.clientX !== undefined && e.clientY !== undefined) {
-      // Calculate flee vector opposite to cursor
-      const cursorX = e.clientX;
-      const cursorY = e.clientY;
+    const minX = padX;
+    const maxX = Math.max(minX + 20, vpW - safeW - padX);
+    const minY = padTop;
+    const maxY = Math.max(minY + 20, vpH - safeH - padBottom);
 
-      // Split screen into quadrants opposite from cursor
-      let minX = margin;
-      let maxX = maxW;
-      let minY = topOffset;
-      let maxY = maxH;
+    // 4. Cursor position reference
+    const cursorX = (e && e.clientX !== undefined) ? e.clientX : (rect.left + elemW / 2);
+    const cursorY = (e && e.clientY !== undefined) ? e.clientY : (rect.top + elemH / 2);
 
-      if (cursorX > window.innerWidth / 2) {
-        // Cursor on right, jump left
-        maxX = Math.max(margin + 50, window.innerWidth * 0.45 - elemW);
-      } else {
-        // Cursor on left, jump right
-        minX = Math.min(window.innerWidth * 0.55, maxW - 50);
+    // 5. Candidate sampling: pick point with maximum distance from cursor
+    let bestX = minX;
+    let bestY = minY;
+    let maxDist = -1;
+
+    for (let i = 0; i < 14; i++) {
+      const candX = minX + Math.random() * (maxX - minX);
+      const candY = minY + Math.random() * (maxY - minY);
+      const dist = Math.hypot(candX - cursorX, candY - cursorY);
+      if (dist > maxDist) {
+        maxDist = dist;
+        bestX = candX;
+        bestY = candY;
       }
-
-      if (cursorY > window.innerHeight / 2) {
-        // Cursor on bottom, jump top
-        maxY = Math.max(topOffset + 40, window.innerHeight * 0.45 - elemH);
-      } else {
-        // Cursor on top, jump bottom
-        minY = Math.min(window.innerHeight * 0.55, maxH - 40);
-      }
-
-      targetX = Math.floor(minX + Math.random() * Math.max(20, maxX - minX));
-      targetY = Math.floor(minY + Math.random() * Math.max(20, maxY - minY));
-    } else {
-      // Pure random fallback
-      targetX = Math.floor(margin + Math.random() * (maxW - margin));
-      targetY = Math.floor(topOffset + Math.random() * (maxH - topOffset));
     }
 
-    // Clamp within viewport
-    targetX = Math.max(margin, Math.min(maxW, targetX));
-    targetY = Math.max(topOffset, Math.min(maxH, targetY));
+    // Absolute boundary clamp (never exceeds viewport under any circumstances)
+    const targetX = Math.round(Math.max(minX, Math.min(maxX, bestX)));
+    const targetY = Math.round(Math.max(minY, Math.min(maxY, bestY)));
 
-    // Dynamic comical rotation
-    const rotation = (Math.random() * 24 - 12).toFixed(1);
-    const scale = (0.95 + Math.random() * 0.1).toFixed(2);
+    // Subtle comical rotation that doesn't poke out
+    const rotation = (Math.random() * 16 - 8).toFixed(1);
 
-    // Lock current width so layout doesn't shrink when switching to fixed position
     if (!this.activeElement.style.width) {
-      this.activeElement.style.width = `${elemW}px`;
+      this.activeElement.style.width = `${Math.round(elemW)}px`;
     }
 
     this.activeElement.style.position = 'fixed';
     this.activeElement.style.left = `${targetX}px`;
     this.activeElement.style.top = `${targetY}px`;
-    this.activeElement.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+    this.activeElement.style.transform = `rotate(${rotation}deg)`;
     this.activeElement.style.zIndex = '9999';
 
-    this.showSpeechBubble(targetX, targetY, elemW, elemH);
+    this.showSpeechBubble(targetX, targetY, elemW, elemH, vpW, vpH, padTop);
   }
 
-  showSpeechBubble(x, y, w, h) {
+  showSpeechBubble(x, y, w, h, vpW, vpH, padTop) {
     if (!this.speechBubble) return;
 
     let quipIndex = (this.evasionCount - 1) % this.quips.length;
     let text = this.quips[quipIndex];
 
-    if (this.evasionCount >= 8 && this.evasionCount % 4 === 0) {
-      text = `Né ${this.evasionCount} lần rồi đó! Nhận thua đi haha! 🏆`;
+    if (this.evasionCount >= 6 && this.evasionCount % 3 === 0) {
+      text = `Né ${this.evasionCount} lần rồi đó! Bấm nút kia đi haha! 🏆`;
     }
 
     this.speechBubble.textContent = text;
     this.speechBubble.classList.remove('hidden', 'fade-out');
     this.speechBubble.classList.add('pop-in');
 
-    // Position speech bubble above or below the button depending on screen position
-    let bubbleY = y - 46;
-    if (bubbleY < 75) {
-      bubbleY = y + h + 12; // place below
+    const bubbleEstimateW = Math.min(220, vpW - 32);
+    let bubbleX = Math.round(Math.max(16, Math.min(vpW - bubbleEstimateW - 16, x + (w / 2) - (bubbleEstimateW / 2))));
+    
+    // Position bubble above or below element
+    let bubbleY = y - 44;
+    if (bubbleY < padTop) {
+      bubbleY = y + h + 10;
     }
-    let bubbleX = Math.max(16, Math.min(window.innerWidth - 220, x + (w / 2) - 100));
+    if (bubbleY > vpH - 55) {
+      bubbleY = vpH - 55;
+    }
 
     this.speechBubble.style.left = `${bubbleX}px`;
     this.speechBubble.style.top = `${bubbleY}px`;
 
-    // Auto-hide bubble after a brief moment
     clearTimeout(this.bubbleTimer);
     this.bubbleTimer = setTimeout(() => {
       if (this.speechBubble) {
         this.speechBubble.classList.add('fade-out');
       }
-    }, 1400);
+    }, 1300);
   }
 }
 

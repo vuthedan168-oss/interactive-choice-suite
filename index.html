@@ -2,7 +2,7 @@
 <html lang="vi" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Interactive Choice Suite - Nút Chạy Trốn & Vua Giữ Đài</title>
   
   <!-- Tailwind CSS CDN -->
@@ -70,6 +70,11 @@
 
     <!-- Right Controls -->
     <div class="flex items-center gap-3">
+      <a href="https://vuthedan168-oss.github.io/interactive-choice-suite/" target="_blank" class="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold hover:bg-emerald-500/25 transition-all" title="Bấm để mở trang online trên điện thoại">
+        <i data-lucide="smartphone" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span>Link Trực Tiếp Điện Thoại</span>
+      </a>
+
       <!-- Sound Toggle -->
       <button id="btn-sound-toggle" type="button" class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition-all" title="Bật/Tắt âm thanh">
         <i data-lucide="volume-2" class="w-4 h-4"></i>
@@ -470,6 +475,65 @@
         </button>
         <button id="btn-save-candidate" type="button" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs hover:shadow-lg hover:shadow-amber-400/40 transition-all">
           Lưu Nhân Vật
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================
+       MODAL: SHARE LINK & QR CODE FOR MOBILE & PC
+       ======================================================== -->
+  <div id="modal-share-link" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-panel-gold rounded-3xl max-w-md w-full p-6 md:p-8 space-y-5 animate-pop-in border border-amber-400 shadow-2xl">
+      
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold">
+            <i data-lucide="smartphone" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-black text-white">Link Người Chơi & Mã QR</h3>
+            <p class="text-[11px] text-amber-300">Dùng được ngay trên điện thoại & máy tính</p>
+          </div>
+        </div>
+        <button type="button" onclick="document.getElementById('modal-share-link').classList.add('hidden')" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- QR Code Display -->
+      <div class="text-center space-y-3">
+        <div class="w-48 h-48 mx-auto p-3 rounded-2xl bg-white shadow-2xl flex items-center justify-center border-2 border-amber-400/40">
+          <img id="share-qr-image" src="" alt="Mã QR chơi trên điện thoại" class="w-full h-full object-contain" />
+        </div>
+        <p class="text-xs text-slate-300 font-medium">
+          📱 Dùng camera điện thoại quét mã QR này để vào chơi ngay lập tức!
+        </p>
+      </div>
+
+      <!-- URL Box -->
+      <div class="space-y-2">
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          Hoặc sao chép link gửi qua Zalo / Messenger:
+        </label>
+        <div class="flex items-center gap-2">
+          <input id="share-url-input" type="text" readonly class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/20 text-xs text-amber-300 font-mono select-all focus:outline-none" />
+          <button id="btn-copy-modal-link" type="button" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs hover:shadow-lg hover:shadow-amber-400/40 transition-all shrink-0 flex items-center gap-1">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            <span>Chép Link</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="pt-2 flex items-center justify-between border-t border-white/10 gap-3">
+        <button id="btn-open-share-link" type="button" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all flex items-center justify-center gap-1.5">
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+          <span>Mở Thử Trên Tab Mới</span>
+        </button>
+        <button type="button" onclick="document.getElementById('modal-share-link').classList.add('hidden')" class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs transition-all">
+          Đóng
         </button>
       </div>
 
