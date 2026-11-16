@@ -91,6 +91,19 @@ class App {
       });
     }
 
+    // Brand Logo Button (Click to open Giao Diện Tạo Thiệp)
+    const btnBrandHome = document.getElementById('btn-brand-home');
+    if (btnBrandHome) {
+      btnBrandHome.addEventListener('click', () => {
+        evasionEngine.detach();
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.hash = '';
+        window.history.pushState({}, '', url.toString());
+        this.launchStudioView();
+      });
+    }
+
     // Studio Mode Switcher Tabs
     const tabMode1 = document.getElementById('tab-mode1');
     const tabMode2 = document.getElementById('tab-mode2');
@@ -110,20 +123,21 @@ class App {
 
     const btnPlayMode2 = document.getElementById('btn-play-mode2');
     if (btnPlayMode2) btnPlayMode2.addEventListener('click', () => this.previewAsPlayer('mode2'));
+  }
 
-    // Back to edit from player view
-    const btnBackEdit = document.getElementById('btn-back-to-edit');
-    if (btnBackEdit) {
-      btnBackEdit.addEventListener('click', () => {
-        evasionEngine.detach();
-        this.currentView = 'studio';
-        const url = new URL(window.location.href);
-        url.search = '';
-        url.hash = '';
-        window.history.pushState({}, '', url.toString());
-        this.switchStudioMode(this.currentMode);
-      });
-    }
+  launchStudioView() {
+    evasionEngine.detach();
+    this.currentView = 'studio';
+
+    const studioContainer = document.getElementById('creator-studio-container');
+    const playerContainer = document.getElementById('player-experience-container');
+    const studioTabs = document.getElementById('studio-mode-tabs');
+
+    studioContainer.classList.remove('hidden');
+    playerContainer.classList.add('hidden');
+    if (studioTabs) studioTabs.classList.remove('hidden');
+
+    this.switchStudioMode(this.currentMode);
   }
 
   switchStudioMode(mode) {
@@ -136,11 +150,11 @@ class App {
     const panelMode2 = document.getElementById('studio-panel-mode2');
     const studioContainer = document.getElementById('creator-studio-container');
     const playerContainer = document.getElementById('player-experience-container');
-    const playerControls = document.getElementById('player-controls-bar');
+    const studioTabs = document.getElementById('studio-mode-tabs');
 
     studioContainer.classList.remove('hidden');
     playerContainer.classList.add('hidden');
-    if (playerControls) playerControls.classList.add('hidden');
+    if (studioTabs) studioTabs.classList.remove('hidden');
 
     if (mode === 'mode1') {
       tabMode1.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-lg shadow-pink-500/30 transition-all';
@@ -650,11 +664,11 @@ class App {
 
     const studioContainer = document.getElementById('creator-studio-container');
     const playerContainer = document.getElementById('player-experience-container');
-    const playerControls = document.getElementById('player-controls-bar');
+    const studioTabs = document.getElementById('studio-mode-tabs');
 
     studioContainer.classList.add('hidden');
     playerContainer.classList.remove('hidden');
-    if (playerControls) playerControls.classList.remove('hidden');
+    if (studioTabs) studioTabs.classList.add('hidden');
 
     if (this.currentMode === 'mode1') {
       this.startMode1PlayerGame();

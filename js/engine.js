@@ -1,7 +1,7 @@
 /**
  * Runaway Physics & Proximity Evasion Engine
- * Handles dodging physics for the runaway reject button.
- * Strictly guarantees the button stays within user focus and visible card bounds.
+ * Handles dodging physics across the entire visible interface.
+ * Strictly guarantees the button stays fully within screen boundaries and never disappears.
  */
 
 class EvasionEngine {
@@ -12,8 +12,8 @@ class EvasionEngine {
     this.quips = [...DEFAULT_RUNAWAY_QUIPS];
     this.boundListeners = [];
     this.lastDodgeTime = 0;
-    this.cooldownMs = 80;
-    this.proximityRadius = 80;
+    this.cooldownMs = 60;
+    this.proximityRadius = 85;
     this.speechBubble = null;
     this.bubbleTimer = null;
   }
@@ -117,13 +117,13 @@ class EvasionEngine {
   dodge(e = null) {
     if (!this.activeElement) return;
     const now = Date.now();
-    if (now - this.lastDodgeTime < 70) return;
+    if (now - this.lastDodgeTime < 50) return;
     this.lastDodgeTime = now;
     this.evasionCount++;
 
     sounds.playBoing();
 
-    // 1. Get exact viewport bounds
+    // 1. Get exact viewport bounds (accounting for mobile visual viewport)
     const vpW = window.visualViewport ? window.visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
     const vpH = window.visualViewport ? window.visualViewport.height : (document.documentElement.clientHeight || window.innerHeight);
 
@@ -132,51 +132,26 @@ class EvasionEngine {
     const elemW = rect.width || 140;
     const elemH = rect.height || 48;
 
-    // 3. Anchor jumping zone inside the active Game Box so button NEVER flies off to monitor edges
-    const gameBox = document.getElementById('m1-game-box');
-    let minX, maxX, minY, maxY;
+    // 3. Strict safe margins across the ENTIRE INTERFACE so it jumps everywhere but NEVER clips
+    const padX = Math.max(20, Math.min(36, vpW * 0.04));
+    const padTop = 85;   // Below top header bar
+    const padBottom = Math.max(30, Math.min(50, vpH * 0.05)); // Above bottom edge
 
-    if (gameBox) {
-      const boxRect = gameBox.getBoundingClientRect();
-      const padX = 20;
-      minX = Math.round(boxRect.left + padX);
-      maxX = Math.round(boxRect.right - elemW - padX);
-      minY = Math.round(boxRect.top + 130); // under question text
-      maxY = Math.round(boxRect.bottom - elemH - 24);
+    const minX = padX;
+    const maxX = Math.max(minX + 20, vpW - elemW - padX);
+    const minY = padTop;
+    const maxY = Math.max(minY + 20, vpH - elemH - padBottom);
 
-      // On narrow mobile devices, ensure min/max are valid
-      if (maxX <= minX) {
-        minX = Math.max(16, Math.round(boxRect.left));
-        maxX = Math.min(vpW - elemW - 16, Math.round(boxRect.right - elemW));
-      }
-      if (maxY <= minY) {
-        minY = Math.max(80, Math.round(boxRect.top + 90));
-        maxY = Math.min(vpH - elemH - 30, Math.round(boxRect.bottom - elemH));
-      }
-    } else {
-      const pad = 24;
-      minX = pad;
-      maxX = vpW - elemW - pad;
-      minY = 90;
-      maxY = vpH - elemH - 40;
-    }
-
-    // Absolute fallback clamp: MUST be within visible viewport
-    minX = Math.max(16, minX);
-    maxX = Math.min(vpW - elemW - 16, Math.max(minX + 10, maxX));
-    minY = Math.max(75, minY);
-    maxY = Math.min(vpH - elemH - 30, Math.max(minY + 10, maxY));
-
-    // 4. Cursor position reference
+    // 4. Pointer reference
     const cursorX = (e && e.clientX !== undefined) ? e.clientX : (rect.left + elemW / 2);
     const cursorY = (e && e.clientY !== undefined) ? e.clientY : (rect.top + elemH / 2);
 
-    // 5. Candidate sampling: pick point inside the card with max distance from pointer
+    // 5. Sample candidate points all over the screen to find the one furthest from pointer
     let bestX = minX;
     let bestY = minY;
     let maxDist = -1;
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 16; i++) {
       const candX = minX + Math.random() * (maxX - minX);
       const candY = minY + Math.random() * (maxY - minY);
       const dist = Math.hypot(candX - cursorX, candY - cursorY);
@@ -187,10 +162,12 @@ class EvasionEngine {
       }
     }
 
+    // Double clamp against visible screen
     const targetX = Math.round(Math.max(minX, Math.min(maxX, bestX)));
     const targetY = Math.round(Math.max(minY, Math.min(maxY, bestY)));
 
-    const rotation = (Math.random() * 12 - 6).toFixed(1);
+    // Subtle playful tilt
+    const rotation = (Math.random() * 8 - 4).toFixed(1);
 
     if (!this.activeElement.style.width) {
       this.activeElement.style.width = `${Math.round(elemW)}px`;
@@ -202,10 +179,10 @@ class EvasionEngine {
     this.activeElement.style.transform = `rotate(${rotation}deg)`;
     this.activeElement.style.zIndex = '9999';
 
-    this.showSpeechBubble(targetX, targetY, elemW, elemH, vpW, vpH, minY);
+    this.showSpeechBubble(targetX, targetY, elemW, elemH, vpW, vpH, padTop);
   }
 
-  showSpeechBubble(x, y, w, h, vpW, vpH, minY) {
+  showSpeechBubble(x, y, w, h, vpW, vpH, padTop) {
     if (!this.speechBubble) return;
 
     let quipIndex = (this.evasionCount - 1) % this.quips.length;
@@ -223,7 +200,7 @@ class EvasionEngine {
     let bubbleX = Math.round(Math.max(16, Math.min(vpW - bubbleEstimateW - 16, x + (w / 2) - (bubbleEstimateW / 2))));
     
     let bubbleY = y - 44;
-    if (bubbleY < 75) {
+    if (bubbleY < padTop) {
       bubbleY = y + h + 10;
     }
     if (bubbleY > vpH - 50) {
