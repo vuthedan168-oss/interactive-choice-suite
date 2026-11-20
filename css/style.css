@@ -2,9 +2,9 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap');
 
-/* Global Standardized Font Family */
+/* Global Standardized Font Family - Vietnamese Optimized */
 *, body, button, input, textarea, select {
-  font-family: 'Plus Jakarta Sans', 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Be Vietnam Pro', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -175,4 +175,81 @@ html, body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(244, 63, 94, 0.65);
+}
+
+/* ========================================================
+ * MODE 2: RIGGED DUEL CARDS (CHAMPION VS SHRUNK DODGING RIVAL)
+ * ======================================================== */
+.rigged-favored-champion {
+  z-index: 30 !important;
+  position: relative !important;
+  border-color: rgba(245, 158, 11, 0.9) !important;
+  box-shadow: 0 0 35px rgba(245, 158, 11, 0.4), 0 15px 35px rgba(0, 0, 0, 0.8) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.rigged-rival-shrunk {
+  max-width: 220px !important;
+  padding: 14px 12px !important;
+  transform-origin: center center;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), top 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), left 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8), 0 0 15px rgba(244, 63, 94, 0.3) !important;
+  opacity: 0.92;
+  border-color: rgba(244, 63, 94, 0.4) !important;
+  cursor: not-allowed !important;
+}
+
+.rigged-rival-shrunk .w-32,
+.rigged-rival-shrunk .md\:w-44 {
+  width: 72px !important;
+  height: 72px !important;
+  margin-top: 6px !important;
+  margin-bottom: 6px !important;
+}
+
+.rigged-rival-shrunk h3 {
+  font-size: 0.92rem !important;
+  line-height: 1.2 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rigged-rival-shrunk p {
+  font-size: 0.7rem !important;
+  margin-bottom: 6px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rigged-rival-shrunk button {
+  padding: 6px 8px !important;
+  font-size: 0.72rem !important;
+  background: linear-gradient(to right, #475569, #334155) !important;
+  color: #cbd5e1 !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+@media (max-width: 640px) {
+  .rigged-rival-shrunk {
+    max-width: 165px !important;
+    padding: 10px 8px !important;
+  }
+  .rigged-rival-shrunk .w-32,
+  .rigged-rival-shrunk .md\:w-44 {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .rigged-rival-shrunk h3 {
+    font-size: 0.8rem !important;
+  }
+  .rigged-rival-shrunk p {
+    font-size: 0.62rem !important;
+  }
+  .rigged-rival-shrunk button {
+    padding: 5px 6px !important;
+    font-size: 0.65rem !important;
+  }
 }

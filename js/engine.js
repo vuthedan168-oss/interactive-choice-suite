@@ -23,6 +23,7 @@ class EvasionEngine {
     this.detach();
     if (!element) return;
 
+    this.options = options || {};
     this.activeElement = element;
     this.originalParent = element.parentElement;
     this.originalNextSibling = element.nextElementSibling;
@@ -33,6 +34,10 @@ class EvasionEngine {
     }
 
     this.activeElement.classList.add('runaway-target');
+    if (this.options.shrunk) {
+      this.activeElement.classList.add('rigged-rival-shrunk');
+    }
+
     this.createSpeechBubble();
 
     const onPointerMove = (e) => this.handlePointerMove(e);
@@ -71,11 +76,12 @@ class EvasionEngine {
     }
 
     if (this.activeElement) {
-      this.activeElement.classList.remove('runaway-target', 'is-running');
+      this.activeElement.classList.remove('runaway-target', 'is-running', 'rigged-rival-shrunk');
       this.activeElement.style.position = '';
       this.activeElement.style.left = '';
       this.activeElement.style.top = '';
       this.activeElement.style.width = '';
+      this.activeElement.style.maxWidth = '';
       this.activeElement.style.transform = '';
       this.activeElement.style.zIndex = '';
 
@@ -91,6 +97,7 @@ class EvasionEngine {
       this.activeElement = null;
     }
 
+    this.options = {};
     this.originalParent = null;
     this.originalNextSibling = null;
     this.evasionCount = 0;
@@ -142,40 +149,85 @@ class EvasionEngine {
       document.body.appendChild(this.activeElement);
     }
 
-    // 1. Get exact viewport bounds
+    // 1. Get exact viewport bounds (visualViewport accounts for mobile keyboards/address bars)
     const vpW = window.visualViewport ? window.visualViewport.width : (document.documentElement.clientWidth || window.innerWidth);
     const vpH = window.visualViewport ? window.visualViewport.height : (document.documentElement.clientHeight || window.innerHeight);
 
+    // If shrunk card mode (for rigged rival in Mode 2)
+    const isShrunk = this.options && this.options.shrunk;
+    let targetElemW;
+    if (isShrunk) {
+      targetElemW = vpW < 640 ? Math.min(170, vpW * 0.44) : Math.min(220, vpW * 0.28);
+      this.activeElement.classList.add('rigged-rival-shrunk');
+      this.activeElement.style.maxWidth = `${Math.round(targetElemW)}px`;
+      this.activeElement.style.width = `${Math.round(targetElemW)}px`;
+    }
+
     // 2. Measure button size
     const rect = this.activeElement.getBoundingClientRect();
-    const elemW = Math.min(vpW * 0.7, rect.width || 140);
-    const elemH = rect.height || 48;
+    const elemW = isShrunk ? targetElemW : Math.min(vpW * 0.7, rect.width || 140);
+    const elemH = rect.height || (isShrunk ? 200 : 48);
 
     // 3. Strict safe margins: button jumps across ENTIRE screen but NEVER clips or falls out
-    const padX = Math.max(20, Math.min(32, vpW * 0.04));
-    const padTop = 85;   // Below top header bar
-    const padBottom = Math.max(30, Math.min(50, vpH * 0.06)); // Above bottom screen edge
+    const padX = Math.max(16, Math.min(32, vpW * 0.04));
+    const padTop = 80;   // Below top header bar
+    const padBottom = Math.max(25, Math.min(50, vpH * 0.06)); // Above bottom screen edge
 
     const minX = padX;
     const maxX = Math.max(minX + 20, vpW - elemW - padX);
     const minY = padTop;
     const maxY = Math.max(minY + 20, vpH - elemH - padBottom);
 
-    // 4. Pointer position reference
+    // 4. Avoid element (e.g. Favored Champion card)
+    let avoidRect = null;
+    if (this.options && this.options.avoidElement) {
+      const avoidEl = typeof this.options.avoidElement === 'string'
+        ? document.querySelector(this.options.avoidElement)
+        : this.options.avoidElement;
+      if (avoidEl && avoidEl.getBoundingClientRect) {
+        avoidRect = avoidEl.getBoundingClientRect();
+      }
+    }
+
+    // 5. Pointer position reference
     const cursorX = (e && e.clientX !== undefined) ? e.clientX : (rect.left + elemW / 2);
     const cursorY = (e && e.clientY !== undefined) ? e.clientY : (rect.top + elemH / 2);
 
-    // 5. Sample candidate points all over the screen to find the one furthest from pointer
+    // Helper: checks collision between candidate bounding box and avoidRect
+    const overlapsAvoid = (cx, cy, cw, ch, avoid, buffer = 20) => {
+      if (!avoid) return false;
+      return (
+        cx + cw >= avoid.left - buffer &&
+        cx <= avoid.right + buffer &&
+        cy + ch >= avoid.top - buffer &&
+        cy <= avoid.bottom + buffer
+      );
+    };
+
+    // 6. Sample candidate points all over the screen to find the one furthest from pointer AND NOT overlapping avoidRect
     let bestX = minX;
     let bestY = minY;
-    let maxDist = -1;
+    let maxScore = -Infinity;
 
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 30; i++) {
       const candX = minX + Math.random() * (maxX - minX);
       const candY = minY + Math.random() * (maxY - minY);
-      const dist = Math.hypot(candX - cursorX, candY - cursorY);
-      if (dist > maxDist) {
-        maxDist = dist;
+      
+      const distToCursor = Math.hypot(candX - cursorX, candY - cursorY);
+      const isOverlapping = overlapsAvoid(candX, candY, elemW, elemH, avoidRect);
+
+      let score = distToCursor;
+      if (isOverlapping) {
+        // Severe penalty if it overlaps the favored card
+        score -= 10000;
+      } else if (avoidRect) {
+        // Bonus for staying comfortably clear of favored card
+        const distToAvoid = Math.hypot(candX - (avoidRect.left + avoidRect.width / 2), candY - (avoidRect.top + avoidRect.height / 2));
+        score += distToAvoid * 0.4;
+      }
+
+      if (score > maxScore) {
+        maxScore = score;
         bestX = candX;
         bestY = candY;
       }
@@ -196,7 +248,7 @@ class EvasionEngine {
     this.activeElement.style.left = `${targetX}px`;
     this.activeElement.style.top = `${targetY}px`;
     this.activeElement.style.transform = `rotate(${rotation}deg)`;
-    this.activeElement.style.zIndex = '9999';
+    this.activeElement.style.zIndex = '45';
 
     this.showSpeechBubble(targetX, targetY, elemW, elemH, vpW, vpH, padTop);
   }

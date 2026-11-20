@@ -254,7 +254,8 @@ const DEFAULT_MODE1_CONFIG = {
   theme: "love",
   celebrationTitle: "Yay! Tớ biết mà! Cảm ơn cậu nhiều nha! 🎉",
   celebrationMessage: "Từ nay cậu chính thức là người quan trọng nhất trong lòng tớ đó! Hứa là sẽ luôn làm cậu cười mỗi ngày! 🥰",
-  celebrationGif: CURATED_GIFS[0].url
+  celebrationGif: CURATED_GIFS[0].url,
+  musicUrl: ""
 };
 
 const DEFAULT_MODE2_CONFIG = {
@@ -265,7 +266,8 @@ const DEFAULT_MODE2_CONFIG = {
   riggedFinalBoss: true,
   customRiggedName: "Tôi (Người tạo thử thách)",
   customRiggedField: "Nhân vật bí ẩn bất khả chiến bại",
-  customRiggedAvatar: ""
+  customRiggedAvatar: "",
+  musicUrl: ""
 };
 
 /**

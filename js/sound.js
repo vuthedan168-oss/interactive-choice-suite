@@ -269,19 +269,144 @@ class SoundFx {
     }
   }
 
-  toggleBgm() {
-    if (this.bgmPlaying) {
-      this.stopBgm();
-      return false;
-    } else {
+  /* ========================================================
+   * UNIVERSAL MUSIC PLAYER (YOUTUBE, MP3 / AUDIO FILES & SYNTH BGM)
+   * Automatically loops and starts smoothly on mobile/PC.
+   * ======================================================== */
+  playMusic(customUrl = '') {
+    this.stopMusic();
+    this.currentMusicUrl = (customUrl || '').trim();
+
+    if (!this.currentMusicUrl) {
+      // No custom URL: use built-in happy synthesizer BGM
       this.startBgm();
-      return true;
+      return;
     }
+
+    // 1. Check for YouTube URL
+    const ytMatch = this.currentMusicUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/i);
+    if (ytMatch && ytMatch[1]) {
+      this.playYouTubeBgm(ytMatch[1]);
+      return;
+    }
+
+    // 2. HTML5 Audio (Direct MP3, AAC, WAV or Data URL / Blob)
+    this.playAudioElement(this.currentMusicUrl);
+  }
+
+  playAudioElement(url) {
+    let audio = document.getElementById('bgm-audio-player');
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.id = 'bgm-audio-player';
+      audio.loop = true;
+      audio.preload = 'auto';
+      document.body.appendChild(audio);
+    }
+
+    audio.src = url;
+    audio.volume = this.muted ? 0 : 0.45;
+    audio.muted = this.muted;
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn("Audio autoplay blocked by browser policy, waiting for first touch:", err);
+      });
+    }
+    this.bgmPlaying = true;
+  }
+
+  playYouTubeBgm(videoId) {
+    let ytContainer = document.getElementById('yt-bgm-container');
+    if (!ytContainer) {
+      ytContainer = document.createElement('div');
+      ytContainer.id = 'yt-bgm-container';
+      ytContainer.style.position = 'fixed';
+      ytContainer.style.width = '1px';
+      ytContainer.style.height = '1px';
+      ytContainer.style.left = '-9999px';
+      ytContainer.style.top = '-9999px';
+      ytContainer.style.opacity = '0.001';
+      ytContainer.style.pointerEvents = 'none';
+      document.body.appendChild(ytContainer);
+    }
+
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1&origin=${encodeURIComponent(window.location.origin || '*')}`;
+    ytContainer.innerHTML = `<iframe id="yt-bgm-iframe" width="100" height="100" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
+    this.bgmPlaying = true;
+  }
+
+  stopMusic() {
+    this.stopBgm();
+
+    const audio = document.getElementById('bgm-audio-player');
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+
+    const ytContainer = document.getElementById('yt-bgm-container');
+    if (ytContainer) {
+      ytContainer.innerHTML = '';
+    }
+
+    this.bgmPlaying = false;
+  }
+
+  setMute(isMuted) {
+    this.muted = isMuted;
+
+    const audio = document.getElementById('bgm-audio-player');
+    if (audio) {
+      audio.muted = this.muted;
+      if (!this.muted && audio.paused) {
+        audio.play().catch(() => {});
+      }
+    }
+
+    const ytIframe = document.getElementById('yt-bgm-iframe');
+    if (ytIframe && ytIframe.contentWindow) {
+      const func = this.muted ? 'mute' : 'unMute';
+      ytIframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func }), '*');
+    }
+
+    if (this.ctx && this.ctx.state === 'suspended' && !this.muted) {
+      this.ctx.resume();
+    }
+
+    return this.muted;
   }
 
   toggleMute() {
-    this.muted = !this.muted;
-    return this.muted;
+    return this.setMute(!this.muted);
+  }
+
+  /**
+   * Initializes background audio automatically upon entering the site.
+   * If browser autoplay policy blocks unmuted audio before user interaction,
+   * resumes instantly on the user's very first touch or click.
+   */
+  initAutoplay(musicUrl = '') {
+    this.playMusic(musicUrl);
+
+    const onUserTouchToPlay = () => {
+      this.init();
+      const audio = document.getElementById('bgm-audio-player');
+      if (audio && audio.paused && !this.muted) {
+        audio.play().catch(() => {});
+      }
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume();
+      }
+      if (!this.currentMusicUrl && !this.bgmPlaying && !this.muted) {
+        this.startBgm();
+      }
+    };
+
+    ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(evt => {
+      window.addEventListener(evt, onUserTouchToPlay, { once: true, passive: true });
+    });
   }
 }
 

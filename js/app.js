@@ -42,6 +42,9 @@ class App {
     this.syncStudioMode1Inputs();
     this.renderStudioMode2();
 
+    const initialMusic = this.currentMode === 'mode2' ? this.mode2Config.musicUrl : this.mode1Config.musicUrl;
+    sounds.initAutoplay(initialMusic);
+
     if (this.currentView === 'player') {
       this.launchPlayerView();
     } else {
@@ -77,7 +80,7 @@ class App {
   }
 
   bindGlobalEvents() {
-    // Sound FX toggle
+    // Single Speaker Sound & Music toggle
     const soundToggle = document.getElementById('btn-sound-toggle');
     if (soundToggle) {
       soundToggle.addEventListener('click', () => {
@@ -87,42 +90,9 @@ class App {
           icon.setAttribute('data-lucide', this.isMuted ? 'volume-x' : 'volume-2');
           lucide.createIcons();
         }
-        this.showToast(this.isMuted ? 'Đã tắt hiệu ứng âm thanh' : 'Đã bật hiệu ứng âm thanh');
+        this.showToast(this.isMuted ? '🔇 Đã tắt âm thanh' : '🎵 Đã bật âm thanh');
       });
     }
-
-    // BGM Music toggle
-    const bgmToggle = document.getElementById('btn-bgm-toggle');
-    const bgmText = document.getElementById('bgm-status-text');
-    if (bgmToggle) {
-      bgmToggle.addEventListener('click', () => {
-        const isPlaying = sounds.toggleBgm();
-        if (isPlaying) {
-          bgmToggle.classList.add('bg-pink-500/30', 'border-pink-400');
-          bgmToggle.classList.remove('bg-pink-500/15');
-          const musicIcon = bgmToggle.querySelector('[data-lucide="music"]');
-          if (musicIcon) musicIcon.classList.add('music-playing');
-          if (bgmText) bgmText.textContent = 'Tắt Nhạc';
-          this.showToast('🎵 Đã bật nhạc nền vui vẻ!');
-        } else {
-          bgmToggle.classList.remove('bg-pink-500/30', 'border-pink-400');
-          bgmToggle.classList.add('bg-pink-500/15');
-          const musicIcon = bgmToggle.querySelector('[data-lucide="music"]');
-          if (musicIcon) musicIcon.classList.remove('music-playing');
-          if (bgmText) bgmText.textContent = 'Bật Nhạc';
-          this.showToast('🔇 Đã tắt nhạc nền');
-        }
-      });
-    }
-
-    // Initialize audio on first user touch/click
-    const onFirstUserGesture = () => {
-      sounds.init();
-      window.removeEventListener('pointerdown', onFirstUserGesture);
-      window.removeEventListener('keydown', onFirstUserGesture);
-    };
-    window.addEventListener('pointerdown', onFirstUserGesture, { once: true });
-    window.addEventListener('keydown', onFirstUserGesture, { once: true });
 
     // Brand Logo Button (Click to open Giao Diện Tạo Thiệp)
     const btnBrandHome = document.getElementById('btn-brand-home');
@@ -195,12 +165,14 @@ class App {
       panelMode1.classList.remove('hidden');
       panelMode2.classList.add('hidden');
       this.renderBackgroundDecorations(this.mode1Config.theme);
+      sounds.playMusic(this.mode1Config.musicUrl);
     } else {
       tabMode2.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-lg shadow-amber-500/30 transition-all';
       tabMode1.className = 'flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-slate-400 hover:text-white hover:bg-white/5 transition-all';
       panelMode1.classList.add('hidden');
       panelMode2.classList.remove('hidden');
       this.renderBackgroundDecorations('luxury');
+      sounds.playMusic(this.mode2Config.musicUrl);
     }
 
     lucide.createIcons();
@@ -217,6 +189,10 @@ class App {
     const celebTitleInput = document.getElementById('m1-celeb-title');
     const celebMsgInput = document.getElementById('m1-celeb-msg');
     const customGifInput = document.getElementById('m1-custom-gif');
+    const musicUrlInput = document.getElementById('m1-music-url');
+    const musicFileInput = document.getElementById('m1-music-file');
+    const musicStatusText = document.getElementById('m1-music-status-text');
+    const btnClearMusic = document.getElementById('btn-m1-clear-music');
 
     if (questionInput) questionInput.value = this.mode1Config.question;
     if (subtitleInput) subtitleInput.value = this.mode1Config.subtitle;
@@ -225,6 +201,28 @@ class App {
     if (celebTitleInput) celebTitleInput.value = this.mode1Config.celebrationTitle;
     if (celebMsgInput) celebMsgInput.value = this.mode1Config.celebrationMessage;
     if (customGifInput) customGifInput.value = this.mode1Config.celebrationGif;
+
+    const updateMode1MusicStatus = () => {
+      const url = (this.mode1Config.musicUrl || '').trim();
+      if (musicUrlInput) musicUrlInput.value = url.startsWith('data:audio') ? '[File nhạc đã tải lên]' : url;
+      if (musicStatusText) {
+        if (!url) {
+          musicStatusText.textContent = 'Đang dùng: Nhạc vui tươi mặc định (tự động phát)';
+          if (btnClearMusic) btnClearMusic.classList.add('hidden');
+        } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+          musicStatusText.textContent = 'Đang dùng: Nhạc YouTube (tự động phát)';
+          if (btnClearMusic) btnClearMusic.classList.remove('hidden');
+        } else if (url.startsWith('data:audio') || url.startsWith('blob:')) {
+          musicStatusText.textContent = 'Đang dùng: File nhạc đã tải lên (tự động phát)';
+          if (btnClearMusic) btnClearMusic.classList.remove('hidden');
+        } else {
+          musicStatusText.textContent = 'Đang dùng: Link nhạc trực tuyến (tự động phát)';
+          if (btnClearMusic) btnClearMusic.classList.remove('hidden');
+        }
+      }
+    };
+
+    updateMode1MusicStatus();
 
     const onInput = () => {
       this.mode1Config.question = questionInput.value.trim() || DEFAULT_MODE1_CONFIG.question;
@@ -250,6 +248,41 @@ class App {
         }
       });
     }
+
+    if (musicUrlInput) {
+      musicUrlInput.addEventListener('change', () => {
+        const val = musicUrlInput.value.trim();
+        this.mode1Config.musicUrl = val;
+        updateMode1MusicStatus();
+        sounds.playMusic(val);
+      });
+    }
+
+    if (musicFileInput) {
+      musicFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (loadEvt) => {
+            this.mode1Config.musicUrl = loadEvt.target.result;
+            updateMode1MusicStatus();
+            sounds.playMusic(this.mode1Config.musicUrl);
+            this.showToast('🎵 Đã tải file nhạc lên thành công!');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    if (btnClearMusic) {
+      btnClearMusic.addEventListener('click', () => {
+        this.mode1Config.musicUrl = '';
+        if (musicFileInput) musicFileInput.value = '';
+        updateMode1MusicStatus();
+        sounds.playMusic('');
+        this.showToast('Đã khôi phục nhạc mặc định');
+      });
+    }
   }
 
   renderStudioThemePicker() {
@@ -269,33 +302,33 @@ class App {
       }`;
 
       const swatchesHtml = theme.swatches.map(color => `
-        <span class="w-5 h-5 rounded-full shadow-md border border-white/20 inline-block" style="background-color: ${color}"></span>
+        <span class="w-5 h-5 rounded-full shadow-md border border-white/20 inline-block shrink-0" style="background-color: ${color}"></span>
       `).join('');
 
       const decoHtml = theme.decorations.slice(0, 4).join(' ');
 
       card.innerHTML = `
         <div class="flex items-start justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg bg-gradient-to-br ${theme.bgGradient} border border-white/20 shadow-md">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg bg-gradient-to-br ${theme.bgGradient} border border-white/20 shadow-md shrink-0">
               <i data-lucide="${theme.icon}" class="w-5 h-5 text-white"></i>
             </div>
-            <div>
-              <div class="text-sm font-black text-white flex items-center gap-2">
-                <span>${theme.name}</span>
-                ${isSelected ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-pink-500 text-white">Đang chọn</span>' : ''}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-black text-white truncate leading-tight">${theme.name}</span>
+                ${isSelected ? '<span class="shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-[10px] font-black bg-pink-500 text-white shadow-sm">Đang chọn</span>' : ''}
               </div>
-              <div class="text-xs text-slate-300 mt-0.5">${theme.desc}</div>
+              <div class="text-xs text-slate-300 mt-0.5 leading-snug">${theme.desc}</div>
             </div>
           </div>
         </div>
 
         <div class="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1.5 shrink-0">
             <span class="text-[11px] font-bold text-slate-400 mr-1">Bảng màu:</span>
             ${swatchesHtml}
           </div>
-          <div class="text-sm tracking-widest opacity-80 select-none">
+          <div class="text-sm tracking-widest opacity-80 select-none shrink-0">
             ${decoHtml}
           </div>
         </div>
@@ -420,6 +453,69 @@ class App {
           this.showToast('Đã khôi phục danh sách mặc định!');
         }
       };
+    }
+
+    // Music Controls for Mode 2
+    const m2MusicUrlInput = document.getElementById('m2-music-url');
+    const m2MusicFileInput = document.getElementById('m2-music-file');
+    const m2MusicStatusText = document.getElementById('m2-music-status-text');
+    const btnM2ClearMusic = document.getElementById('btn-m2-clear-music');
+
+    const updateMode2MusicStatus = () => {
+      const url = (this.mode2Config.musicUrl || '').trim();
+      if (m2MusicUrlInput) m2MusicUrlInput.value = url.startsWith('data:audio') ? '[File nhạc đã tải lên]' : url;
+      if (m2MusicStatusText) {
+        if (!url) {
+          m2MusicStatusText.textContent = 'Đang dùng: Nhạc vui tươi mặc định';
+          if (btnM2ClearMusic) btnM2ClearMusic.classList.add('hidden');
+        } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+          m2MusicStatusText.textContent = 'Đang dùng: Nhạc YouTube';
+          if (btnM2ClearMusic) btnM2ClearMusic.classList.remove('hidden');
+        } else if (url.startsWith('data:audio') || url.startsWith('blob:')) {
+          m2MusicStatusText.textContent = 'Đang dùng: File nhạc đã tải lên';
+          if (btnM2ClearMusic) btnM2ClearMusic.classList.remove('hidden');
+        } else {
+          m2MusicStatusText.textContent = 'Đang dùng: Link nhạc trực tuyến';
+          if (btnM2ClearMusic) btnM2ClearMusic.classList.remove('hidden');
+        }
+      }
+    };
+
+    updateMode2MusicStatus();
+
+    if (m2MusicUrlInput) {
+      m2MusicUrlInput.addEventListener('change', () => {
+        const val = m2MusicUrlInput.value.trim();
+        this.mode2Config.musicUrl = val;
+        updateMode2MusicStatus();
+        sounds.playMusic(val);
+      });
+    }
+
+    if (m2MusicFileInput) {
+      m2MusicFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (loadEvt) => {
+            this.mode2Config.musicUrl = loadEvt.target.result;
+            updateMode2MusicStatus();
+            sounds.playMusic(this.mode2Config.musicUrl);
+            this.showToast('🎵 Đã tải file nhạc cho đấu trường!');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    if (btnM2ClearMusic) {
+      btnM2ClearMusic.addEventListener('click', () => {
+        this.mode2Config.musicUrl = '';
+        if (m2MusicFileInput) m2MusicFileInput.value = '';
+        updateMode2MusicStatus();
+        sounds.playMusic('');
+        this.showToast('Đã khôi phục nhạc mặc định');
+      });
     }
 
     this.renderStudioMode2Roster();
@@ -703,6 +799,9 @@ class App {
     playerContainer.classList.remove('hidden');
     if (studioTabs) studioTabs.classList.add('hidden');
 
+    const activeMusic = this.currentMode === 'mode2' ? this.mode2Config.musicUrl : this.mode1Config.musicUrl;
+    sounds.playMusic(activeMusic);
+
     if (this.currentMode === 'mode1') {
       this.startMode1PlayerGame();
     } else {
@@ -912,7 +1011,9 @@ class App {
         <div id="m2-arena" class="relative grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-center justify-center pt-2">
           
           <!-- LEFT CARD -->
-          <div id="card-cand-1" class="carpet-card glass-panel-gold rounded-3xl p-6 text-center border border-amber-400/40 cursor-pointer select-none group relative">
+          <div id="card-cand-1" class="carpet-card glass-panel-gold rounded-3xl p-6 text-center border border-amber-400/40 cursor-pointer select-none group relative ${isCand1Rigged ? 'rigged-favored-champion' : (isCand2Rigged ? 'rigged-rival-shrunk' : '')}">
+            ${isCand1Rigged ? '<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs shadow-lg uppercase tracking-wide mb-1">👑 Ứng Viên Bảo Chứng</div>' : ''}
+            
             <div class="w-32 h-32 md:w-44 md:h-44 mx-auto rounded-2xl overflow-hidden my-4 border-2 border-amber-400/60 shadow-2xl relative bg-slate-900 ring-2 ring-amber-400/20">
               ${this.renderCardImage(candidate1)}
             </div>
@@ -938,7 +1039,9 @@ class App {
           </div>
 
           <!-- RIGHT CARD -->
-          <div id="card-cand-2" class="carpet-card glass-panel-gold rounded-3xl p-6 text-center border border-amber-400/40 cursor-pointer select-none group relative">
+          <div id="card-cand-2" class="carpet-card glass-panel-gold rounded-3xl p-6 text-center border border-amber-400/40 cursor-pointer select-none group relative ${isCand2Rigged ? 'rigged-favored-champion' : (isCand1Rigged ? 'rigged-rival-shrunk' : '')}">
+            ${isCand2Rigged ? '<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs shadow-lg uppercase tracking-wide mb-1">👑 Ứng Viên Bảo Chứng</div>' : ''}
+            
             <div class="w-32 h-32 md:w-44 md:h-44 mx-auto rounded-2xl overflow-hidden my-4 border-2 border-amber-400/60 shadow-2xl relative bg-slate-900 ring-2 ring-amber-400/20">
               ${this.renderCardImage(candidate2)}
             </div>
@@ -973,10 +1076,26 @@ class App {
     if (isRiggedMatch) {
       const favoredCand = isCand1Rigged ? candidate1 : candidate2;
       const favoredCard = isCand1Rigged ? card1 : card2;
+      const rivalCand = isCand1Rigged ? candidate2 : candidate1;
       const rivalCard = isCand1Rigged ? card2 : card1;
 
+      // 1. Mark Favored Champion Card (keeps full size, dignified aura)
+      favoredCard.classList.add('rigged-favored-champion');
+
+      // 2. Mark Rival Card (shrunk, non-clickable for victory)
+      rivalCard.classList.add('rigged-rival-shrunk');
+      const rivalBtn = rivalCard.querySelector('button');
+      if (rivalBtn) {
+        rivalBtn.classList.remove('bg-gradient-to-r', 'from-amber-400', 'via-yellow-400', 'to-amber-500', 'text-slate-950', 'group-hover:shadow-amber-400/60');
+        rivalBtn.classList.add('bg-slate-800', 'text-slate-400', 'border', 'border-white/10');
+        rivalBtn.innerHTML = `<span class="truncate">Không thể chọn 😜</span>`;
+      }
+
+      // Attach evasion with shrunk mode and avoidElement so it NEVER lands on or covers favoredCard
       evasionEngine.attach(rivalCard, {
-        proximityRadius: 90,
+        shrunk: true,
+        avoidElement: favoredCard,
+        proximityRadius: window.innerWidth < 768 ? 70 : 95,
         quips: [
           `Ủa tính chọn đối thủ hả? ${favoredCand.name} mới là Số 1! 👑`,
           "Không có cửa bấm vào đây đâu nha! 😜",
@@ -985,6 +1104,14 @@ class App {
         ]
       });
 
+      // Clicking rival card NEVER selects winner, only dodges
+      rivalCard.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        evasionEngine.dodge(e);
+      };
+
+      // Only favored card can be clicked to win
       favoredCard.onclick = () => {
         evasionEngine.detach();
         sounds.playSelect();
