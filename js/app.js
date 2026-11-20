@@ -1281,29 +1281,117 @@ class App {
     }
   }
 
+  /* ========================================================
+   * URL SHORTENING & JSONP NETWORK HELPERS
+   * ======================================================== */
+  jsonpRequest(url, paramName = 'callback', timeoutMs = 3500) {
+    return new Promise((resolve, reject) => {
+      const cbName = 'jsonp_cb_' + Math.random().toString(36).slice(2) + '_' + Date.now();
+      const script = document.createElement('script');
+      let timer = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        if (script && script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+      };
+
+      window[cbName] = (data) => {
+        cleanup();
+        resolve(data);
+      };
+
+      script.onerror = () => {
+        cleanup();
+        reject(new Error('JSONP load error'));
+      };
+
+      timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('JSONP request timed out'));
+      }, timeoutMs);
+
+      const sep = url.includes('?') ? '&' : '?';
+      script.src = `${url}${sep}${paramName}=${cbName}`;
+      document.head.appendChild(script);
+    });
+  }
+
+  copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(() => {
+        return this.fallbackCopyText(text);
+      });
+    } else {
+      return Promise.resolve(this.fallbackCopyText(text));
+    }
+  }
+
+  fallbackCopyText(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.top = "-9999px";
+    textArea.style.left = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    let success = false;
+    try {
+      success = document.execCommand('copy');
+    } catch (err) {
+      console.warn('Fallback copy failed', err);
+    }
+    if (textArea.parentNode) {
+      textArea.parentNode.removeChild(textArea);
+    }
+    return success;
+  }
+
   async fetchShortUrl(longUrl) {
-    // 1. Try is.gd (super clean ~19 char URL)
+    // 1. is.gd via JSONP (bypasses browser CORS completely, ultrafast ~19 chars, direct 301)
     try {
-      const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`);
-      if (res.ok) {
-        const text = await res.text();
-        if (text && text.startsWith('http')) return text.trim();
+      const endpoint = `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
+      const data = await this.jsonpRequest(endpoint, 'callback', 3000);
+      if (data && data.shorturl && data.shorturl.startsWith('http')) {
+        return data.shorturl.trim();
       }
     } catch (e) {
-      console.warn("is.gd service error:", e);
+      console.warn("is.gd JSONP shortener error:", e);
     }
 
-    // 2. Fallback to TinyURL
+    // 2. clck.ru via native CORS fetch (official Access-Control-Allow-Origin: *)
     try {
-      const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`https://clck.ru/--?url=${encodeURIComponent(longUrl)}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timer);
       if (res.ok) {
         const text = await res.text();
-        if (text && text.startsWith('http')) return text.trim();
+        if (text && text.trim().startsWith('http')) {
+          return text.trim();
+        }
       }
     } catch (e) {
-      console.warn("TinyURL service error:", e);
+      console.warn("clck.ru shortener error:", e);
     }
 
+    // 3. v.gd via JSONP
+    try {
+      const endpoint = `https://v.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
+      const data = await this.jsonpRequest(endpoint, 'callback', 3000);
+      if (data && data.shorturl && data.shorturl.startsWith('http')) {
+        return data.shorturl.trim();
+      }
+    } catch (e) {
+      console.warn("v.gd JSONP shortener error:", e);
+    }
+
+    // Fallback: return original URL
     return longUrl;
   }
 
@@ -1323,10 +1411,6 @@ class App {
     const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
     const directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
 
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(directShareUrl).catch(() => {});
-    }
-
     this.openShareModal(directShareUrl);
   }
 
@@ -1343,7 +1427,9 @@ class App {
     let shortUrl = null;
     let isShowingShort = true;
 
-    if (input) input.value = directShareUrl;
+    if (input) {
+      input.value = '⚡ Đang tạo link rút gọn siêu ngắn...';
+    }
     if (qrImg) {
       qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(directShareUrl)}`;
     }
@@ -1352,8 +1438,8 @@ class App {
     }
 
     if (typeBadge) {
-      typeBadge.textContent = '⚡ Đang tạo link rút gọn...';
-      typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30';
+      typeBadge.textContent = '⚡ Đang rút gọn link qua API...';
+      typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 animate-pulse';
     }
 
     // Fetch shortened URL asynchronously
@@ -1361,7 +1447,10 @@ class App {
       if (sUrl && sUrl !== directShareUrl) {
         shortUrl = sUrl;
         currentShowingUrl = shortUrl;
-        if (input) input.value = shortUrl;
+        if (input) {
+          input.value = shortUrl;
+          input.select();
+        }
         if (qrImg) {
           qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(shortUrl)}`;
         }
@@ -1373,10 +1462,12 @@ class App {
           toggleBtn.textContent = 'Chuyển sang xem link gốc';
         }
         // Auto-copy short URL to clipboard
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(shortUrl).catch(() => {});
-        }
+        this.copyTextToClipboard(shortUrl).then(() => {
+          this.showToast('🎉 Đã tạo & tự động sao chép link rút gọn!');
+        }).catch(() => {});
       } else {
+        currentShowingUrl = directShareUrl;
+        if (input) input.value = directShareUrl;
         if (typeBadge) {
           typeBadge.textContent = 'Link trực tiếp';
           typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-bold border border-pink-500/30';
@@ -1389,7 +1480,10 @@ class App {
         if (!shortUrl) return;
         isShowingShort = !isShowingShort;
         currentShowingUrl = isShowingShort ? shortUrl : directShareUrl;
-        if (input) input.value = currentShowingUrl;
+        if (input) {
+          input.value = currentShowingUrl;
+          input.select();
+        }
         if (qrImg) {
           qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(currentShowingUrl)}`;
         }
@@ -1399,15 +1493,10 @@ class App {
 
     const doCopy = () => {
       const urlToCopy = currentShowingUrl;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(urlToCopy).then(() => {
-          this.showToast('🎉 Đã sao chép link người chơi!');
-        });
-      } else {
-        input.select();
-        document.execCommand('copy');
-        this.showToast('🎉 Đã sao chép link người chơi!');
-      }
+      this.copyTextToClipboard(urlToCopy).then(() => {
+        const isShort = shortUrl && urlToCopy === shortUrl;
+        this.showToast(isShort ? '🎉 Đã sao chép link rút gọn siêu ngắn!' : '🎉 Đã sao chép link người chơi!');
+      });
     };
 
     if (copyBtn) copyBtn.onclick = doCopy;
@@ -1415,7 +1504,6 @@ class App {
     if (modal) {
       modal.classList.remove('hidden');
     }
-    this.showToast('🎉 Đã tạo link chia sẻ!');
   }
 
   showToast(message) {
