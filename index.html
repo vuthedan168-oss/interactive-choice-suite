@@ -550,15 +550,26 @@
       </div>
 
       <div class="space-y-2">
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
-          Hoặc sao chép link gửi qua Zalo / Messenger:
-        </label>
+        <div class="flex items-center justify-between">
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            Link gửi qua Zalo / Messenger / SMS:
+          </label>
+          <span id="share-link-type-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+            ⚡ Link rút gọn siêu ngắn
+          </span>
+        </div>
         <div class="flex items-center gap-2">
           <input id="share-url-input" type="text" readonly class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/20 text-xs text-pink-300 font-mono select-all focus:outline-none" />
           <button id="btn-copy-modal-link" type="button" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 text-white font-black text-xs hover:shadow-lg hover:shadow-pink-500/40 transition-all shrink-0 flex items-center gap-1">
             <i data-lucide="copy" class="w-3.5 h-3.5"></i>
             <span>Chép Link</span>
           </button>
+        </div>
+        <div class="flex items-center justify-between text-[11px] pt-1">
+          <button id="btn-toggle-link-type" type="button" class="text-pink-400 hover:text-pink-300 underline font-medium">
+            Chuyển sang xem link gốc
+          </button>
+          <span class="text-slate-500 text-[10px]">Tự động sao chép vào bộ nhớ tạm</span>
         </div>
       </div>
 

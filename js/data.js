@@ -314,36 +314,145 @@ function resolveAvatarUrl(url) {
 }
 
 /**
- * URL State Serialization
+ * URL State Serialization (Compact, Ultra-Short & URL-Safe)
  */
 function serializeConfig(type, config) {
   try {
-    const raw = JSON.stringify({ type, config, v: 2 });
-    const utf8 = encodeURIComponent(raw).replace(/%([0-9A-F]{2})/g, (match, p1) => {
-      return String.fromCharCode('0x' + p1);
-    });
-    return btoa(utf8);
+    let packed;
+    if (type === 'mode1') {
+      let cg = config.celebrationGif || '';
+      const gifIdx = CURATED_GIFS.findIndex(g => g.url === cg);
+      if (gifIdx !== -1) cg = gifIdx;
+
+      packed = {
+        v: 3,
+        m: 'mode1',
+        q: (config.question || '').trim(),
+        s: (config.subtitle || '').trim(),
+        yt: (config.targetText || '').trim(),
+        rt: (config.rejectText || '').trim(),
+        t: config.theme || 'love',
+        ct: (config.celebrationTitle || '').trim(),
+        cm: (config.celebrationMessage || '').trim(),
+        cg: cg,
+        mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio')) ? config.musicUrl.trim() : ''
+      };
+    } else {
+      packed = {
+        v: 3,
+        m: 'mode2',
+        t: (config.title || '').trim(),
+        s: (config.subtitle || '').trim(),
+        rw: config.riggedWinnerId || '',
+        fb: config.riggedFinalBoss ? 1 : 0,
+        mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio')) ? config.musicUrl.trim() : ''
+      };
+
+      // Only save roster if customized by user
+      if (Array.isArray(config.roster)) {
+        const isDefaultRoster = JSON.stringify(config.roster) === JSON.stringify(DEFAULT_CELEBRITIES);
+        if (!isDefaultRoster) {
+          packed.r = config.roster.map(c => ({
+            id: c.id,
+            name: c.name,
+            field: c.field,
+            avatar: c.avatar || '',
+            initials: c.initials || ''
+          }));
+        }
+      }
+    }
+
+    const raw = JSON.stringify(packed);
+    const bytes = (typeof TextEncoder !== 'undefined')
+      ? new TextEncoder().encode(raw)
+      : new Uint8Array(unescape(encodeURIComponent(raw)).split('').map(c => c.charCodeAt(0)));
+
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) {
+      bin += String.fromCharCode(bytes[i]);
+    }
+    const b64 = btoa(bin);
+    // Standard URL-Safe Base64: - instead of +, _ instead of /, strip trailing =
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   } catch (e) {
     console.error("Failed to serialize config", e);
     return null;
   }
 }
 
-function deserializeConfig(hashOrQuery) {
+function deserializeConfig(input) {
   try {
-    if (!hashOrQuery) return null;
-    let clean = hashOrQuery.replace(/^(\?|#)/, '');
+    if (!input) return null;
+    let clean = input.replace(/^(\?|#)/, '');
     const params = new URLSearchParams(clean);
-    const payload = params.get('data') || params.get('cfg') || clean;
-    if (!payload) return null;
-    
-    const binary = atob(payload);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
+    let payload = params.get('data') || params.get('cfg') || clean;
+
+    if (payload.includes('data=')) {
+      const p2 = new URLSearchParams(payload);
+      payload = p2.get('data') || payload;
     }
-    const jsonStr = decodeURIComponent(escape(binary));
-    return JSON.parse(jsonStr);
+    if (!payload) return null;
+
+    // Restore URL-safe base64 and recover spaces caused by URL query parsing
+    payload = payload.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '+');
+    while (payload.length % 4 !== 0) {
+      payload += '=';
+    }
+
+    const bin = atob(payload);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+
+    let jsonStr;
+    if (typeof TextDecoder !== 'undefined') {
+      jsonStr = new TextDecoder('utf-8').decode(bytes);
+    } else {
+      jsonStr = decodeURIComponent(escape(bin));
+    }
+
+    const data = JSON.parse(jsonStr);
+
+    // If version 3 (Compact schema)
+    if (data && data.v === 3) {
+      if (data.m === 'mode1' || (!data.m && data.q)) {
+        let gifUrl = data.cg;
+        if (typeof data.cg === 'number' && CURATED_GIFS[data.cg]) {
+          gifUrl = CURATED_GIFS[data.cg].url;
+        }
+        return {
+          type: 'mode1',
+          config: {
+            question: data.q || DEFAULT_MODE1_CONFIG.question,
+            subtitle: data.s !== undefined ? data.s : DEFAULT_MODE1_CONFIG.subtitle,
+            targetText: data.yt || DEFAULT_MODE1_CONFIG.targetText,
+            rejectText: data.rt || DEFAULT_MODE1_CONFIG.rejectText,
+            theme: data.t || DEFAULT_MODE1_CONFIG.theme,
+            celebrationTitle: data.ct || DEFAULT_MODE1_CONFIG.celebrationTitle,
+            celebrationMessage: data.cm || DEFAULT_MODE1_CONFIG.celebrationMessage,
+            celebrationGif: gifUrl || DEFAULT_MODE1_CONFIG.celebrationGif,
+            musicUrl: data.mu || ''
+          }
+        };
+      } else if (data.m === 'mode2') {
+        return {
+          type: 'mode2',
+          config: {
+            title: data.t || DEFAULT_MODE2_CONFIG.title,
+            subtitle: data.s !== undefined ? data.s : DEFAULT_MODE2_CONFIG.subtitle,
+            riggedWinnerId: data.rw || '',
+            riggedFinalBoss: data.fb !== 0,
+            musicUrl: data.mu || '',
+            roster: (data.r && Array.isArray(data.r)) ? data.r : JSON.parse(JSON.stringify(DEFAULT_CELEBRITIES))
+          }
+        };
+      }
+    }
+
+    // Legacy v2 format support
+    return data;
   } catch (e) {
     console.error("Failed to deserialize config", e);
     return null;

@@ -59,7 +59,16 @@ class App {
 
     if (isPlay) {
       this.currentView = 'player';
-      const payload = params.get('data') || hash;
+      let payload = params.get('data');
+      if (!payload && hash) {
+        const cleanHash = hash.replace(/^#/, '');
+        const hashParams = new URLSearchParams(cleanHash);
+        payload = hashParams.get('data') || cleanHash;
+      }
+      if (!payload) {
+        payload = window.location.search || hash;
+      }
+
       const decoded = deserializeConfig(payload);
       if (decoded && decoded.config) {
         if (decoded.type === 'mode2') {
@@ -250,6 +259,11 @@ class App {
     }
 
     if (musicUrlInput) {
+      musicUrlInput.addEventListener('input', () => {
+        const val = musicUrlInput.value.trim();
+        this.mode1Config.musicUrl = val;
+        updateMode1MusicStatus();
+      });
       musicUrlInput.addEventListener('change', () => {
         const val = musicUrlInput.value.trim();
         this.mode1Config.musicUrl = val;
@@ -314,8 +328,8 @@ class App {
               <i data-lucide="${theme.icon}" class="w-5 h-5 text-white"></i>
             </div>
             <div class="min-w-0 flex-1">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-sm font-black text-white truncate leading-tight">${theme.name}</span>
+              <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                <span class="text-sm font-black text-white leading-tight">${theme.name}</span>
                 ${isSelected ? '<span class="shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-[10px] font-black bg-pink-500 text-white shadow-sm">Đang chọn</span>' : ''}
               </div>
               <div class="text-xs text-slate-300 mt-0.5 leading-snug">${theme.desc}</div>
@@ -484,6 +498,11 @@ class App {
     updateMode2MusicStatus();
 
     if (m2MusicUrlInput) {
+      m2MusicUrlInput.addEventListener('input', () => {
+        const val = m2MusicUrlInput.value.trim();
+        this.mode2Config.musicUrl = val;
+        updateMode2MusicStatus();
+      });
       m2MusicUrlInput.addEventListener('change', () => {
         const val = m2MusicUrlInput.value.trim();
         this.mode2Config.musicUrl = val;
@@ -783,6 +802,7 @@ class App {
    * PLAYER VIEW LAUNCHER
    * ======================================================== */
   previewAsPlayer(mode) {
+    this.readCurrentStudioInputs(mode);
     this.currentMode = mode;
     this.launchPlayerView();
   }
@@ -1221,9 +1241,78 @@ class App {
   }
 
   /* ========================================================
+   * READ DOM INPUTS BEFORE SHARING / PLAYING
+   * ======================================================== */
+  readCurrentStudioInputs(mode = 'mode1') {
+    if (mode === 'mode1') {
+      const q = document.getElementById('m1-question');
+      const s = document.getElementById('m1-subtitle');
+      const yt = document.getElementById('m1-target-text');
+      const rt = document.getElementById('m1-reject-text');
+      const ct = document.getElementById('m1-celeb-title');
+      const cm = document.getElementById('m1-celeb-msg');
+      const cg = document.getElementById('m1-custom-gif');
+      const mu = document.getElementById('m1-music-url');
+
+      if (q && q.value.trim()) this.mode1Config.question = q.value.trim();
+      if (s) this.mode1Config.subtitle = s.value.trim();
+      if (yt && yt.value.trim()) this.mode1Config.targetText = yt.value.trim();
+      if (rt && rt.value.trim()) this.mode1Config.rejectText = rt.value.trim();
+      if (ct && ct.value.trim()) this.mode1Config.celebrationTitle = ct.value.trim();
+      if (cm && cm.value.trim()) this.mode1Config.celebrationMessage = cm.value.trim();
+      if (cg && cg.value.trim()) this.mode1Config.celebrationGif = cg.value.trim();
+      if (mu && !this.mode1Config.musicUrl.startsWith('data:audio')) {
+        this.mode1Config.musicUrl = mu.value.trim();
+      }
+    } else {
+      const t = document.getElementById('m2-title');
+      const s = document.getElementById('m2-subtitle');
+      const mu = document.getElementById('m2-music-url');
+      const rw = document.getElementById('m2-rigged-winner');
+      const fb = document.getElementById('m2-final-boss-toggle');
+
+      if (t && t.value.trim()) this.mode2Config.title = t.value.trim();
+      if (s) this.mode2Config.subtitle = s.value.trim();
+      if (mu && !this.mode2Config.musicUrl.startsWith('data:audio')) {
+        this.mode2Config.musicUrl = mu.value.trim();
+      }
+      if (rw) this.mode2Config.riggedWinnerId = rw.value;
+      if (fb) this.mode2Config.riggedFinalBoss = fb.checked;
+    }
+  }
+
+  async fetchShortUrl(longUrl) {
+    // 1. Try is.gd (super clean ~19 char URL)
+    try {
+      const res = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`);
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.startsWith('http')) return text.trim();
+      }
+    } catch (e) {
+      console.warn("is.gd service error:", e);
+    }
+
+    // 2. Fallback to TinyURL
+    try {
+      const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.startsWith('http')) return text.trim();
+      }
+    } catch (e) {
+      console.warn("TinyURL service error:", e);
+    }
+
+    return longUrl;
+  }
+
+  /* ========================================================
    * SHARING & QR CODE FOR MOBILE & PC
    * ======================================================== */
   generateAndCopyShareLink(mode = 'mode1') {
+    this.readCurrentStudioInputs(mode);
+
     const config = mode === 'mode1' ? this.mode1Config : this.mode2Config;
     const serialized = serializeConfig(mode, config);
     if (!serialized) {
@@ -1232,47 +1321,101 @@ class App {
     }
 
     const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
-    const shareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
+    const directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(shareUrl).catch(() => {});
+      navigator.clipboard.writeText(directShareUrl).catch(() => {});
     }
 
-    this.openShareModal(shareUrl);
+    this.openShareModal(directShareUrl);
   }
 
-  openShareModal(shareUrl) {
+  openShareModal(directShareUrl) {
     const modal = document.getElementById('modal-share-link');
     const input = document.getElementById('share-url-input');
     const qrImg = document.getElementById('share-qr-image');
     const openBtn = document.getElementById('btn-open-share-link');
     const copyBtn = document.getElementById('btn-copy-modal-link');
+    const toggleBtn = document.getElementById('btn-toggle-link-type');
+    const typeBadge = document.getElementById('share-link-type-badge');
 
-    if (input) input.value = shareUrl;
+    let currentShowingUrl = directShareUrl;
+    let shortUrl = null;
+    let isShowingShort = true;
+
+    if (input) input.value = directShareUrl;
     if (qrImg) {
-      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(shareUrl)}`;
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(directShareUrl)}`;
     }
     if (openBtn) {
-      openBtn.onclick = () => window.open(shareUrl, '_blank');
+      openBtn.onclick = () => window.open(currentShowingUrl, '_blank');
     }
-    if (copyBtn) {
-      copyBtn.onclick = () => {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(shareUrl).then(() => {
-            this.showToast('🎉 Đã sao chép link người chơi!');
-          });
-        } else {
-          input.select();
-          document.execCommand('copy');
-          this.showToast('🎉 Đã sao chép link người chơi!');
+
+    if (typeBadge) {
+      typeBadge.textContent = '⚡ Đang tạo link rút gọn...';
+      typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30';
+    }
+
+    // Fetch shortened URL asynchronously
+    this.fetchShortUrl(directShareUrl).then(sUrl => {
+      if (sUrl && sUrl !== directShareUrl) {
+        shortUrl = sUrl;
+        currentShowingUrl = shortUrl;
+        if (input) input.value = shortUrl;
+        if (qrImg) {
+          qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(shortUrl)}`;
         }
+        if (typeBadge) {
+          typeBadge.textContent = '⚡ Link rút gọn siêu ngắn (tiện gửi Zalo / SMS)';
+          typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30';
+        }
+        if (toggleBtn) {
+          toggleBtn.textContent = 'Chuyển sang xem link gốc';
+        }
+        // Auto-copy short URL to clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shortUrl).catch(() => {});
+        }
+      } else {
+        if (typeBadge) {
+          typeBadge.textContent = 'Link trực tiếp';
+          typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-bold border border-pink-500/30';
+        }
+      }
+    });
+
+    if (toggleBtn) {
+      toggleBtn.onclick = () => {
+        if (!shortUrl) return;
+        isShowingShort = !isShowingShort;
+        currentShowingUrl = isShowingShort ? shortUrl : directShareUrl;
+        if (input) input.value = currentShowingUrl;
+        if (qrImg) {
+          qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(currentShowingUrl)}`;
+        }
+        toggleBtn.textContent = isShowingShort ? 'Chuyển sang xem link gốc' : 'Chuyển sang xem link rút gọn';
       };
     }
+
+    const doCopy = () => {
+      const urlToCopy = currentShowingUrl;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(urlToCopy).then(() => {
+          this.showToast('🎉 Đã sao chép link người chơi!');
+        });
+      } else {
+        input.select();
+        document.execCommand('copy');
+        this.showToast('🎉 Đã sao chép link người chơi!');
+      }
+    };
+
+    if (copyBtn) copyBtn.onclick = doCopy;
 
     if (modal) {
       modal.classList.remove('hidden');
     }
-    this.showToast('🎉 Đã tạo link người chơi dùng được trên cả điện thoại!');
+    this.showToast('🎉 Đã tạo link chia sẻ!');
   }
 
   showToast(message) {
