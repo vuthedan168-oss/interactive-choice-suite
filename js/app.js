@@ -19,7 +19,8 @@ class App {
       subtitle: DEFAULT_MODE2_CONFIG.subtitle,
       roster: JSON.parse(JSON.stringify(DEFAULT_MODE2_CONFIG.roster)),
       riggedWinnerId: "",
-      riggedFinalBoss: true
+      riggedFinalBoss: true,
+      musicUrl: ""
     };
     this.mode2Game = {
       queue: [],
@@ -305,6 +306,20 @@ class App {
 
     const btnPlayMode2 = document.getElementById('btn-play-mode2');
     if (btnPlayMode2) btnPlayMode2.addEventListener('click', () => this.previewAsPlayer('mode2'));
+
+    // Secondary / Bottom action buttons
+    document.querySelectorAll('.btn-play-mode1-alt').forEach(btn => {
+      btn.addEventListener('click', () => this.previewAsPlayer('mode1'));
+    });
+    document.querySelectorAll('.btn-share-mode1-alt').forEach(btn => {
+      btn.addEventListener('click', () => this.generateAndCopyShareLink('mode1'));
+    });
+    document.querySelectorAll('.btn-play-mode2-alt').forEach(btn => {
+      btn.addEventListener('click', () => this.previewAsPlayer('mode2'));
+    });
+    document.querySelectorAll('.btn-share-mode2-alt').forEach(btn => {
+      btn.addEventListener('click', () => this.generateAndCopyShareLink('mode2'));
+    });
   }
 
   launchStudioView() {
@@ -758,7 +773,7 @@ class App {
       const resolvedAvatar = resolveAvatarUrl(candidate.avatar);
       const avatarContent = resolvedAvatar
         ? `<div class="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
-             <img src="${resolvedAvatar}" class="w-full h-full object-cover ring-2 ${isRigged ? 'ring-amber-400' : 'ring-white/20'}" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+             <img src="${resolvedAvatar}" referrerpolicy="no-referrer" loading="lazy" class="w-full h-full object-cover ring-2 ${isRigged ? 'ring-amber-400' : 'ring-white/20'}" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
              <div class="hidden w-full h-full rounded-full bg-gradient-to-br from-amber-500 to-red-600 flex items-center justify-center font-bold text-xs text-white ring-2 ring-amber-400/50">${initials}</div>
            </div>`
         : `<div class="w-10 h-10 rounded-full bg-gradient-to-br ${candidate.color || 'from-amber-500 to-red-600'} flex items-center justify-center font-bold text-xs text-white ring-2 ring-amber-400/50 shrink-0">${initials}</div>`;
@@ -1058,6 +1073,8 @@ class App {
         targetId = item.id;
         if (makeRigged) {
           this.mode2Config.riggedWinnerId = item.id;
+        } else if (this.mode2Config.riggedWinnerId === item.id) {
+          this.mode2Config.riggedWinnerId = "";
         }
         if (moveToTop && editIndex > 0) {
           this.mode2Config.roster.splice(editIndex, 1);
@@ -1085,8 +1102,12 @@ class App {
         this.showToast(`🎉 Đã thêm thành công: ${name}`);
       }
 
-      this.saveStudioProgress();
       modal.classList.add('hidden');
+      try {
+        this.saveStudioProgress();
+      } catch (err) {
+        console.warn('saveStudioProgress error:', err);
+      }
       this.renderStudioMode2();
 
       // Auto-scroll and glow highlight target row so user sees it instantly
@@ -1649,7 +1670,7 @@ class App {
     if (resolvedAvatar) {
       return `
         <div class="w-full h-full relative">
-          <img src="${resolvedAvatar}" alt="${this.escapeHtml(candidate.name)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <img src="${resolvedAvatar}" referrerpolicy="no-referrer" loading="lazy" alt="${this.escapeHtml(candidate.name)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
           <div class="hidden w-full h-full flex flex-col items-center justify-center font-black text-3xl md:text-5xl bg-gradient-to-br from-amber-500 to-red-600 text-white">
             ${initials}
           </div>
@@ -1684,8 +1705,11 @@ class App {
       if (ct && ct.value.trim()) this.mode1Config.celebrationTitle = ct.value.trim();
       if (cm && cm.value.trim()) this.mode1Config.celebrationMessage = cm.value.trim();
       if (cg && cg.value.trim()) this.mode1Config.celebrationGif = cg.value.trim();
-      if (mu && !this.mode1Config.musicUrl.startsWith('data:audio')) {
-        this.mode1Config.musicUrl = mu.value.trim();
+      if (mu) {
+        const curMu = this.mode1Config.musicUrl || '';
+        if (!curMu.startsWith('data:audio')) {
+          this.mode1Config.musicUrl = mu.value.trim();
+        }
       }
     } else {
       const t = document.getElementById('m2-title');
@@ -1696,10 +1720,13 @@ class App {
 
       if (t && t.value.trim()) this.mode2Config.title = t.value.trim();
       if (s) this.mode2Config.subtitle = s.value.trim();
-      if (mu && !this.mode2Config.musicUrl.startsWith('data:audio')) {
-        this.mode2Config.musicUrl = mu.value.trim();
+      if (mu) {
+        const curMu = this.mode2Config.musicUrl || '';
+        if (!curMu.startsWith('data:audio')) {
+          this.mode2Config.musicUrl = mu.value.trim();
+        }
       }
-      if (rw) this.mode2Config.riggedWinnerId = rw.value;
+      if (rw && document.activeElement === rw) this.mode2Config.riggedWinnerId = rw.value;
       if (fb) this.mode2Config.riggedFinalBoss = fb.checked;
     }
   }
