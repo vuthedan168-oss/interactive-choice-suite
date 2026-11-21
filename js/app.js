@@ -747,6 +747,7 @@ class App {
     this.mode2Config.roster.forEach((candidate, index) => {
       const isRigged = this.mode2Config.riggedWinnerId === candidate.id;
       const row = document.createElement('div');
+      row.setAttribute('data-candidate-id', candidate.id);
       row.className = `p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
         isRigged
           ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/20'
@@ -775,6 +776,11 @@ class App {
           </div>
         </div>
         <div class="flex items-center gap-1 shrink-0">
+          <!-- Move To Top Button (if not already #1) -->
+          ${index > 0 ? `
+          <button type="button" class="btn-move-top p-2 rounded-lg text-slate-400 hover:text-amber-300 hover:bg-white/10 text-xs transition-all" title="Đưa lên đầu (#1 - Đấu ngay Vòng 1)">
+            <i data-lucide="arrow-up-circle" class="w-4 h-4"></i>
+          </button>` : ''}
           <!-- Edit Button -->
           <button type="button" class="btn-edit-candidate p-2 rounded-lg text-slate-400 hover:text-amber-300 hover:bg-white/10 text-xs transition-all" title="Chỉnh sửa tên và nghề nghiệp">
             <i data-lucide="edit-3" class="w-4 h-4"></i>
@@ -789,6 +795,26 @@ class App {
           </button>
         </div>
       `;
+
+      // Move to top Event
+      const btnMoveTop = row.querySelector('.btn-move-top');
+      if (btnMoveTop) {
+        btnMoveTop.onclick = () => {
+          this.mode2Config.roster.splice(index, 1);
+          this.mode2Config.roster.unshift(candidate);
+          this.saveStudioProgress();
+          this.renderStudioMode2();
+          this.showToast(`⚡ Đã đưa [${candidate.name}] lên vị trí #1!`);
+          setTimeout(() => {
+            const el = document.querySelector(`[data-candidate-id="${candidate.id}"]`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              el.classList.add('ring-2', 'ring-amber-400', 'bg-amber-400/30');
+              setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-400/30'), 2000);
+            }
+          }, 80);
+        };
+      }
 
       // Edit Event
       const btnEdit = row.querySelector('.btn-edit-candidate');
@@ -949,6 +975,16 @@ class App {
     avatarInp.value = existing ? existing.avatar : '';
     avatarFileInp.value = '';
 
+    const topToggleInp = document.getElementById('modal-cand-top-toggle');
+    const riggedToggleInp = document.getElementById('modal-cand-rigged-toggle');
+
+    if (topToggleInp) {
+      topToggleInp.checked = isEdit ? (editIndex === 0) : true;
+    }
+    if (riggedToggleInp) {
+      riggedToggleInp.checked = existing ? (this.mode2Config.riggedWinnerId === existing.id) : false;
+    }
+
     const updatePreview = () => {
       const rawUrl = avatarInp.value.trim();
       const resolved = resolveAvatarUrl(rawUrl);
@@ -1002,6 +1038,8 @@ class App {
       const field = fieldInp.value.trim() || 'Thần tượng nổi tiếng';
       const rawAvatar = avatarInp.value.trim();
       const resolvedAvatar = resolveAvatarUrl(rawAvatar);
+      const moveToTop = topToggleInp ? topToggleInp.checked : true;
+      const makeRigged = riggedToggleInp ? riggedToggleInp.checked : false;
 
       if (!name) {
         alert('Vui lòng nhập tên nhân vật!');
@@ -1009,12 +1047,22 @@ class App {
       }
 
       const initials = computeInitials(name);
+      let targetId = '';
 
       if (isEdit) {
-        this.mode2Config.roster[editIndex].name = name;
-        this.mode2Config.roster[editIndex].field = field;
-        this.mode2Config.roster[editIndex].avatar = resolvedAvatar;
-        this.mode2Config.roster[editIndex].initials = initials;
+        const item = this.mode2Config.roster[editIndex];
+        item.name = name;
+        item.field = field;
+        item.avatar = resolvedAvatar;
+        item.initials = initials;
+        targetId = item.id;
+        if (makeRigged) {
+          this.mode2Config.riggedWinnerId = item.id;
+        }
+        if (moveToTop && editIndex > 0) {
+          this.mode2Config.roster.splice(editIndex, 1);
+          this.mode2Config.roster.unshift(item);
+        }
         this.showToast(`Đã cập nhật: ${name}`);
       } else {
         const newCandidate = {
@@ -1025,13 +1073,33 @@ class App {
           initials: initials,
           color: 'from-amber-400 to-rose-600'
         };
-        this.mode2Config.roster.push(newCandidate);
-        this.showToast(`Đã thêm thành công: ${name}`);
+        targetId = newCandidate.id;
+        if (moveToTop) {
+          this.mode2Config.roster.unshift(newCandidate);
+        } else {
+          this.mode2Config.roster.push(newCandidate);
+        }
+        if (makeRigged) {
+          this.mode2Config.riggedWinnerId = newCandidate.id;
+        }
+        this.showToast(`🎉 Đã thêm thành công: ${name}`);
       }
 
       this.saveStudioProgress();
       modal.classList.add('hidden');
       this.renderStudioMode2();
+
+      // Auto-scroll and glow highlight target row so user sees it instantly
+      setTimeout(() => {
+        const targetRow = document.querySelector(`[data-candidate-id="${targetId}"]`);
+        if (targetRow) {
+          targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetRow.classList.add('ring-2', 'ring-amber-400', 'bg-amber-400/30', 'scale-[1.02]');
+          setTimeout(() => {
+            targetRow.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-400/30', 'scale-[1.02]');
+          }, 2500);
+        }
+      }, 80);
     };
 
     modal.classList.remove('hidden');
@@ -1063,6 +1131,17 @@ class App {
     this.saveStudioProgress();
     this.renderStudioMode2();
     this.showToast(`🔥 Đã cài đặt [${creatorName}] làm Trùm Cuối và chắc chắn thắng!`);
+
+    setTimeout(() => {
+      const targetRow = document.querySelector(`[data-candidate-id="${id}"]`);
+      if (targetRow) {
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetRow.classList.add('ring-2', 'ring-amber-400', 'bg-amber-400/30', 'scale-[1.02]');
+        setTimeout(() => {
+          targetRow.classList.remove('ring-2', 'ring-amber-400', 'bg-amber-400/30', 'scale-[1.02]');
+        }, 2500);
+      }
+    }, 80);
   }
 
   /* ========================================================
@@ -1102,10 +1181,10 @@ class App {
   previewAsPlayer(mode) {
     this.readCurrentStudioInputs(mode);
     this.currentMode = mode;
-    this.launchPlayerView();
+    this.launchPlayerView(true);
   }
 
-  launchPlayerView() {
+  launchPlayerView(forceFresh = false) {
     evasionEngine.detach();
     this.currentView = 'player';
 
@@ -1121,9 +1200,11 @@ class App {
     sounds.playMusic(activeMusic);
 
     if (this.currentMode === 'mode1') {
-      this.startMode1PlayerGame();
+      if (forceFresh) this.removeFromStorage(this.getMode1GameStorageKey());
+      this.startMode1PlayerGame(forceFresh);
     } else {
-      this.startMode2KnockoutGame();
+      if (forceFresh) this.clearMode2GameProgress();
+      this.startMode2KnockoutGame(forceFresh);
     }
 
     lucide.createIcons();
