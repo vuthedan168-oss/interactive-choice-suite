@@ -270,6 +270,15 @@ const DEFAULT_MODE2_CONFIG = {
   musicUrl: ""
 };
 
+function computeInitials(name) {
+  if (!name) return 'VIP';
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return words.map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+
 /**
  * Smart Avatar URL Resolver:
  * Automatically resolves YouTube channel links (@username), YouTube videos,
@@ -279,37 +288,43 @@ function resolveAvatarUrl(url) {
   if (!url) return '';
   url = url.trim();
 
-  // 1. YouTube Channel: e.g. https://www.youtube.com/@captainofficial3180
-  const ytChannelMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/@([a-zA-Z0-9_\-\.]+)/i);
+  // 1. YouTube Channel Handle: e.g. @captainofficial3180 or https://www.youtube.com/@captainofficial3180
+  const ytChannelMatch = url.match(/(?:(?:https?:\/\/)?(?:www\.)?youtube\.com\/)?@([a-zA-Z0-9_\-\.]+)/i);
   if (ytChannelMatch && ytChannelMatch[1]) {
     return `https://unavatar.io/youtube/${ytChannelMatch[1]}`;
   }
 
-  // 2. YouTube Video: e.g. https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID
+  // 2. YouTube Custom Channel: /c/name or /user/name
+  const ytCustomMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:c|user)\/([a-zA-Z0-9_\-\.]+)/i);
+  if (ytCustomMatch && ytCustomMatch[1]) {
+    return `https://unavatar.io/youtube/${ytCustomMatch[1]}`;
+  }
+
+  // 3. YouTube Video Thumbnail: e.g. https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID
   const ytVideoMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([a-zA-Z0-9_-]{11})/i);
   if (ytVideoMatch && ytVideoMatch[1]) {
     return `https://img.youtube.com/vi/${ytVideoMatch[1]}/hqdefault.jpg`;
   }
 
-  // 3. TikTok: https://www.tiktok.com/@username
-  const ttMatch = url.match(/(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@([a-zA-Z0-9_\-\.]+)/i);
-  if (ttMatch && ttMatch[1]) {
+  // 4. TikTok: https://www.tiktok.com/@username or tiktok.com/@username
+  const ttMatch = url.match(/(?:(?:https?:\/\/)?(?:www\.)?tiktok\.com\/)?@([a-zA-Z0-9_\-\.]+)/i);
+  if (ttMatch && ttMatch[1] && !url.includes('youtube')) {
     return `https://unavatar.io/tiktok/${ttMatch[1]}`;
   }
 
-  // 4. Twitter / X: https://x.com/username or https://twitter.com/username
+  // 5. Twitter / X: https://x.com/username or https://twitter.com/username
   const twMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/([a-zA-Z0-9_]+)/i);
   if (twMatch && twMatch[1] && !['home', 'explore', 'notifications', 'messages'].includes(twMatch[1].toLowerCase())) {
     return `https://unavatar.io/twitter/${twMatch[1]}`;
   }
 
-  // 5. GitHub: https://github.com/username
+  // 6. GitHub: https://github.com/username
   const ghMatch = url.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_\-]+)/i);
   if (ghMatch && ghMatch[1] && !['settings', 'notifications', 'marketplace'].includes(ghMatch[1].toLowerCase())) {
     return `https://unavatar.io/github/${ghMatch[1]}`;
   }
 
-  // 6. Direct image URL or fallback
+  // 7. Direct image URL or fallback
   return url;
 }
 
@@ -335,7 +350,7 @@ function serializeConfig(type, config) {
         ct: (config.celebrationTitle || '').trim(),
         cm: (config.celebrationMessage || '').trim(),
         cg: cg,
-        mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio')) ? config.musicUrl.trim() : ''
+        mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio') && !config.musicUrl.startsWith('blob:')) ? config.musicUrl.trim() : ''
       };
     } else {
       packed = {
@@ -345,20 +360,27 @@ function serializeConfig(type, config) {
         s: (config.subtitle || '').trim(),
         rw: config.riggedWinnerId || '',
         fb: config.riggedFinalBoss ? 1 : 0,
-        mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio')) ? config.musicUrl.trim() : ''
+        mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio') && !config.musicUrl.startsWith('blob:')) ? config.musicUrl.trim() : ''
       };
 
       // Only save roster if customized by user
       if (Array.isArray(config.roster)) {
         const isDefaultRoster = JSON.stringify(config.roster) === JSON.stringify(DEFAULT_CELEBRITIES);
         if (!isDefaultRoster) {
-          packed.r = config.roster.map(c => ({
-            id: c.id,
-            name: c.name,
-            field: c.field,
-            avatar: c.avatar || '',
-            initials: c.initials || ''
-          }));
+          packed.r = config.roster.map(c => {
+            let av = (c.avatar || '').trim();
+            // Critical: If an avatar is an uncompressed base64 data URL > 2500 chars,
+            // never blow up the URL into hundreds of KBs. Clean initials will display gracefully.
+            if (av.startsWith('data:image/') && av.length > 2500) {
+              av = '';
+            }
+            return {
+              i: c.id,
+              n: (c.name || '').trim(),
+              f: (c.field || '').trim(),
+              a: av
+            };
+          });
         }
       }
     }
@@ -437,6 +459,19 @@ function deserializeConfig(input) {
           }
         };
       } else if (data.m === 'mode2') {
+        const parsedRoster = (data.r && Array.isArray(data.r)) ? data.r.map((c, idx) => {
+          const name = (c.n || c.name || `Nhân vật #${idx + 1}`).trim();
+          const computedInitials = computeInitials(name);
+          return {
+            id: c.i || c.id || `celeb-${idx + 1}`,
+            name: name,
+            field: (c.f || c.field || 'Thần tượng nổi tiếng').trim(),
+            avatar: c.a !== undefined ? c.a : (c.avatar || ''),
+            initials: c.in || c.initials || computedInitials,
+            color: c.c || c.color || 'from-amber-400 to-rose-600'
+          };
+        }) : JSON.parse(JSON.stringify(DEFAULT_CELEBRITIES));
+
         return {
           type: 'mode2',
           config: {
@@ -445,7 +480,7 @@ function deserializeConfig(input) {
             riggedWinnerId: data.rw || '',
             riggedFinalBoss: data.fb !== 0,
             musicUrl: data.mu || '',
-            roster: (data.r && Array.isArray(data.r)) ? data.r : JSON.parse(JSON.stringify(DEFAULT_CELEBRITIES))
+            roster: parsedRoster
           }
         };
       }

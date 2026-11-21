@@ -830,6 +830,104 @@ class App {
     lucide.createIcons();
   }
 
+  compressImageToDataUrl(file, maxDimension = 72, quality = 0.55) {
+    return new Promise((resolve) => {
+      if (!file || !file.type || !file.type.startsWith('image/')) {
+        resolve('');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width || maxDimension;
+          let height = img.height || maxDimension;
+          if (width > height) {
+            if (width > maxDimension) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            }
+          } else {
+            if (height > maxDimension) {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, width);
+          canvas.height = Math.max(1, height);
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressed);
+        };
+        img.onerror = () => resolve(e.target.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  }
+
+  compressBase64Image(base64Str, maxDimension = 72, quality = 0.55) {
+    return new Promise((resolve) => {
+      if (!base64Str || !base64Str.startsWith('data:image/')) {
+        resolve(base64Str);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width || maxDimension;
+        let height = img.height || maxDimension;
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, width);
+        canvas.height = Math.max(1, height);
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve('');
+      img.src = base64Str;
+    });
+  }
+
+  async sanitizeRosterImages() {
+    if (!this.mode2Config || !Array.isArray(this.mode2Config.roster)) return;
+    let modified = false;
+    for (const cand of this.mode2Config.roster) {
+      if (cand.avatar && cand.avatar.startsWith('data:image/') && cand.avatar.length > 2500) {
+        try {
+          const compressed = await this.compressBase64Image(cand.avatar, 72, 0.55);
+          if (compressed) {
+            cand.avatar = compressed;
+            modified = true;
+          }
+        } catch (e) {
+          cand.avatar = '';
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      this.saveStudioProgress();
+    }
+  }
+
   openCandidateModal(editIndex = null) {
     const modal = document.getElementById('modal-add-candidate');
     const modalTitle = document.getElementById('modal-cand-title');
@@ -873,15 +971,27 @@ class App {
       if (!avatarInp.value.trim()) updatePreview();
     };
 
-    avatarFileInp.onchange = (e) => {
+    avatarFileInp.onchange = async (e) => {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = (loadEvent) => {
-          avatarInp.value = loadEvent.target.result;
-          updatePreview();
-        };
-        reader.readAsDataURL(file);
+        this.showToast('⏳ Đang tối ưu và nén ảnh đại diện...');
+        try {
+          const compressed = await this.compressImageToDataUrl(file, 72, 0.55);
+          if (compressed) {
+            avatarInp.value = compressed;
+            updatePreview();
+            this.showToast('⚡ Đã nén ảnh đại diện siêu nhẹ!');
+          } else {
+            const reader = new FileReader();
+            reader.onload = (loadEvent) => {
+              avatarInp.value = loadEvent.target.result;
+              updatePreview();
+            };
+            reader.readAsDataURL(file);
+          }
+        } catch (err) {
+          console.warn('Image compression error', err);
+        }
       }
     };
 
@@ -898,18 +1008,13 @@ class App {
         return;
       }
 
-      const initials = name
-        .split(' ')
-        .map(w => w[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
+      const initials = computeInitials(name);
 
       if (isEdit) {
         this.mode2Config.roster[editIndex].name = name;
         this.mode2Config.roster[editIndex].field = field;
         this.mode2Config.roster[editIndex].avatar = resolvedAvatar;
-        this.mode2Config.roster[editIndex].initials = initials || 'VIP';
+        this.mode2Config.roster[editIndex].initials = initials;
         this.showToast(`Đã cập nhật: ${name}`);
       } else {
         const newCandidate = {
@@ -917,7 +1022,7 @@ class App {
           name: name,
           field: field,
           avatar: resolvedAvatar,
-          initials: initials || 'VIP',
+          initials: initials,
           color: 'from-amber-400 to-rose-600'
         };
         this.mode2Config.roster.push(newCandidate);
@@ -940,19 +1045,14 @@ class App {
     const avatarUrl = prompt('Nhập link ảnh hoặc link YouTube/TikTok của bạn (hoặc để trống):', '');
 
     const id = `celeb-creator-${Date.now()}`;
-    const initials = creatorName
-      .split(' ')
-      .map(w => w[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase();
+    const initials = computeInitials(creatorName);
 
     const creatorCandidate = {
       id: id,
       name: creatorName,
       field: creatorField || 'Thần Tượng Bất Tử',
       avatar: resolveAvatarUrl(avatarUrl),
-      initials: initials || 'ME',
+      initials: initials,
       color: 'from-amber-400 via-yellow-300 to-red-600'
     };
 
@@ -1640,8 +1740,12 @@ class App {
   /* ========================================================
    * SHARING & QR CODE FOR MOBILE & PC
    * ======================================================== */
-  generateAndCopyShareLink(mode = 'mode1') {
+  async generateAndCopyShareLink(mode = 'mode1') {
     this.readCurrentStudioInputs(mode);
+
+    if (mode === 'mode2') {
+      await this.sanitizeRosterImages();
+    }
 
     const config = mode === 'mode1' ? this.mode1Config : this.mode2Config;
     const serialized = serializeConfig(mode, config);
@@ -1652,10 +1756,6 @@ class App {
 
     const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
     const directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(directShareUrl).catch(() => {});
-    }
 
     this.openShareModal(directShareUrl);
   }
