@@ -1,7 +1,7 @@
 /**
- * Magic Game - Core Application
- * Mode 1: Bẫy Tình Yêu (Love Trap)
- * Mode 2: Đại Chiến Thần Tượng (Idol Clash)
+ * Choice Arena - Core Application
+ * Mode 1: Lựa Chọn Định Mệnh (Fate Choice)
+ * Mode 2: Đại Chiến Ngôi Sao (Star Clash)
  */
 
 class App {
@@ -10,10 +10,10 @@ class App {
     this.currentView = 'studio'; // 'studio' | 'player'
     this.isMuted = false;
 
-    // Mode 1: Bẫy Tình Yêu State
+    // Mode 1: Lựa Chọn Định Mệnh State
     this.mode1Config = { ...DEFAULT_MODE1_CONFIG };
 
-    // Mode 2: Đại Chiến Thần Tượng State
+    // Mode 2: Đại Chiến Ngôi Sao State
     this.mode2Config = {
       title: DEFAULT_MODE2_CONFIG.title,
       subtitle: DEFAULT_MODE2_CONFIG.subtitle,
@@ -131,7 +131,7 @@ class App {
   }
 
   resetMode1ToDefault() {
-    if (confirm('Khôi phục về nội dung câu hỏi mẫu ban đầu của Bẫy Tình Yêu? Mọi sửa đổi trước đó sẽ được làm mới.')) {
+    if (confirm('Khôi phục về nội dung câu hỏi mẫu ban đầu của Lựa Chọn Định Mệnh? Mọi sửa đổi trước đó sẽ được làm mới.')) {
       this.mode1Config = { ...DEFAULT_MODE1_CONFIG };
       this.removeFromStorage('love_choice_v2_studio_m1');
       this.syncStudioMode1Inputs();
@@ -596,7 +596,7 @@ class App {
   }
 
   /* ========================================================
-   * MODE 2: ĐẠI CHIẾN THẦN TƯỢNG STUDIO & ROSTER
+   * MODE 2: ĐẠI CHIẾN NGÔI SAO STUDIO & ROSTER
    * ======================================================== */
   renderStudioMode2() {
     const titleInput = document.getElementById('m2-title');
@@ -1358,7 +1358,7 @@ class App {
   }
 
   /* ========================================================
-   * MODE 2: ĐẠI CHIẾN THẦN TƯỢNG PLAY ENGINE
+   * MODE 2: ĐẠI CHIẾN NGÔI SAO PLAY ENGINE
    * ======================================================== */
   startMode2KnockoutGame(forceNew = false) {
     evasionEngine.detach();

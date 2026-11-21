@@ -1,4 +1,4 @@
-# ✨ Magic Game - Bộ Đôi Trò Chơi Tương Tác & Thử Thách Đỉnh Cao
+# 🏆 Choice Arena - Bộ Đôi Trò Chơi Tương Tác & Thử Thách Đỉnh Cao
 
 > 🚀 **TRẢI NGHIỆM DÙNG THỬ TRỰC TIẾP TRÊN TRÌNH DUYỆT & ĐIỆN THOẠI:**  
 > 👉 **[https://vuthedan168-oss.github.io/interactive-choice-suite/](https://vuthedan168-oss.github.io/interactive-choice-suite/)**
@@ -7,13 +7,13 @@
 
 ## 🌟 Giới Thiệu Dự Án
 
-**Magic Game** là ứng dụng web tương tác hiện đại, tinh nghịch và sang trọng được xây dựng thuần chuẩn web hiện đại (HTML5, Tailwind CSS, JavaScript ES6+ & Web Audio API), tối ưu hóa 100% cho mọi kích thước màn hình từ điện thoại di động đến máy tính bảng và desktop.
+**Choice Arena** là ứng dụng web tương tác hiện đại, tinh nghịch và sang trọng được xây dựng thuần chuẩn web hiện đại (HTML5, Tailwind CSS, JavaScript ES6+ & Web Audio API), tối ưu hóa 100% cho mọi kích thước màn hình từ điện thoại di động đến máy tính bảng và desktop.
 
 Dự án gồm **2 phần chơi độc đáo** tách biệt hoàn toàn giữa **Creator Studio** (Giao diện người tạo) và **Player Mode** (Giao diện người chơi):
 
 ---
 
-## 🎮 1. Phần 1: Bẫy Tình Yêu (Love Trap) • Tỏ Tình Bất Khả Từ Chối
+## 🎯 1. Phần 1: Lựa Chọn Định Mệnh (Fate Choice) • Chỉ Có Một Lối Đi
 - **Cơ chế Nút Chạy Trốn:** Khi người chơi di chuột hoặc chạm vào nút từ chối (ví dụ: *"Không bao giờ"*), nút sẽ lập tức tính toán vector né tránh và nhảy tinh nghịch khắp màn hình kèm theo bóng thoại comic dí dỏm. Nút luôn được khóa an toàn bên trong màn hình thiết bị, không bao giờ bị văng mất.
 - **Màn Hình Ăn Mừng Ngập Tràn Cảm Xúc:** Khi người chơi bấm vào lựa chọn mong muốn (ví dụ: *"Có ơi là có 💕"*), hệ thống bắn pháo hoa Confetti rực rỡ, phát âm thanh chúc mừng chiến thắng và hiển thị ảnh động (GIF) tình cảm do người tạo chọn.
 - **Tùy Biến Chủ Đề Trực Quan:** Hỗ trợ 4 chủ đề màu sắc đặc trưng (*Tình yêu lãng mạn, Tình bạn thân thiết, Hài hước/Meme Troll, Thảm đỏ quý tộc*) kèm theo bảng màu swatches và hiệu ứng biểu tượng bay lơ lửng.
@@ -21,8 +21,8 @@ Dự án gồm **2 phần chơi độc đáo** tách biệt hoàn toàn giữa *
 
 ---
 
-## 👑 2. Phần 2: Đại Chiến Thần Tượng (Idol Clash) • Đấu Loại Trực Tiếp 16 Ngôi Sao
-- **Danh Sách 16 Thần Tượng Đa Lĩnh Vực:** Sơn Tùng M-TP, Cristiano Ronaldo, Lionel Messi, Blackpink Lisa, Taylor Swift, Trấn Thành, HIEUTHUHAI, Mỹ Tâm, Faker, Tom Cruise, Zendaya, Leonardo DiCaprio, Độ Mixi, Elon Musk, IU, MONO.
+## 👑 2. Phần 2: Đại Chiến Ngôi Sao (Star Clash) • Sàn Đấu Thần Tượng Đỉnh Cao
+- **Danh Sách 16 Ngôi Sao Đa Lĩnh Vực:** Sơn Tùng M-TP, Cristiano Ronaldo, Lionel Messi, Blackpink Lisa, Taylor Swift, Trấn Thành, HIEUTHUHAI, Mỹ Tâm, Faker, Tom Cruise, Zendaya, Leonardo DiCaprio, Độ Mixi, Elon Musk, IU, MONO.
 - **Thể Thức Vua Giữ Đài:** Đấu loại trực tiếp 1-vs-1. Người được chọn sẽ tiếp tục ở lại đài để so tài cùng các đối thủ tiếp theo cho tới khi tìm ra Quán quân chung cuộc.
 - **Giao Diện Thảm Đỏ Danh Giá:** Thiết kế sang trọng với tông đen nhung huyền bí và viền vàng kim hoàng gia. Cả 2 thẻ bài đối đầu đều được trình bày công bằng, trang trọng và sắc nét.
 - **Tính Năng Vượt Trội - Vua Chỉ Định (Rigged Mode):**

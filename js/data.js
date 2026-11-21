@@ -1,5 +1,5 @@
 /**
- * Data presets and configuration models for Magic Game
+ * Data presets and configuration models for Choice Arena
  */
 
 const DEFAULT_CELEBRITIES = [
@@ -259,8 +259,8 @@ const DEFAULT_MODE1_CONFIG = {
 };
 
 const DEFAULT_MODE2_CONFIG = {
-  title: "ĐẠI CHIẾN THẦN TƯỢNG",
-  subtitle: "Ai là nhân vật xứng đáng đăng quang ngôi vị thần tượng số 1 trong lòng bạn?",
+  title: "ĐẠI CHIẾN NGÔI SAO",
+  subtitle: "Sàn đấu 16 ngôi sao đỉnh cao - Tìm ra Quán quân số 1 trong lòng bạn!",
   roster: [...DEFAULT_CELEBRITIES],
   riggedWinnerId: "",
   riggedFinalBoss: true,
