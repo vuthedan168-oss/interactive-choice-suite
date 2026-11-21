@@ -1,5 +1,5 @@
 /**
- * Love Choice Suite - Core Application
+ * Magic Game - Core Application
  * Mode 1: Bẫy Tình Yêu (Love Trap)
  * Mode 2: Đại Chiến Thần Tượng (Idol Clash)
  */

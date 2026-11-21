@@ -1,4 +1,4 @@
-# 💖 Love Choice - Bộ Đôi Trò Chơi Tương Tác & Thử Thách Đỉnh Cao
+# ✨ Magic Game - Bộ Đôi Trò Chơi Tương Tác & Thử Thách Đỉnh Cao
 
 > 🚀 **TRẢI NGHIỆM DÙNG THỬ TRỰC TIẾP TRÊN TRÌNH DUYỆT & ĐIỆN THOẠI:**  
 > 👉 **[https://vuthedan168-oss.github.io/interactive-choice-suite/](https://vuthedan168-oss.github.io/interactive-choice-suite/)**
@@ -7,7 +7,7 @@
 
 ## 🌟 Giới Thiệu Dự Án
 
-**Love Choice** là ứng dụng web tương tác hiện đại, tinh nghịch và sang trọng được xây dựng thuần chuẩn web hiện đại (HTML5, Tailwind CSS, JavaScript ES6+ & Web Audio API), tối ưu hóa 100% cho mọi kích thước màn hình từ điện thoại di động đến máy tính bảng và desktop.
+**Magic Game** là ứng dụng web tương tác hiện đại, tinh nghịch và sang trọng được xây dựng thuần chuẩn web hiện đại (HTML5, Tailwind CSS, JavaScript ES6+ & Web Audio API), tối ưu hóa 100% cho mọi kích thước màn hình từ điện thoại di động đến máy tính bảng và desktop.
 
 Dự án gồm **2 phần chơi độc đáo** tách biệt hoàn toàn giữa **Creator Studio** (Giao diện người tạo) và **Player Mode** (Giao diện người chơi):
 

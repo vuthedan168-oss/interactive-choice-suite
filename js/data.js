@@ -1,5 +1,5 @@
 /**
- * Data presets and configuration models for Love Choice Suite
+ * Data presets and configuration models for Magic Game
  */
 
 const DEFAULT_CELEBRITIES = [
