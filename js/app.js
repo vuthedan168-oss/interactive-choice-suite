@@ -31,11 +31,173 @@ class App {
       winner: null
     };
 
+    this.debouncedSaveStudio = this.debounce(() => this.saveStudioProgress(), 350);
+
     this.init();
+  }
+
+  /* ========================================================
+   * PROGRESS PERSISTENCE (LOCAL STORAGE)
+   * ======================================================== */
+  saveToStorage(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      if (e.name === 'QuotaExceededError' || e.code === 22) {
+        try {
+          const clone = JSON.parse(JSON.stringify(value));
+          if (clone.musicUrl && clone.musicUrl.startsWith('data:audio')) {
+            clone.musicUrl = '';
+          }
+          localStorage.setItem(key, JSON.stringify(clone));
+          return true;
+        } catch (e2) {
+          console.warn('Quota exceeded after stripping audio data', e2);
+        }
+      }
+      console.warn('LocalStorage save error', e);
+      return false;
+    }
+  }
+
+  loadFromStorage(key) {
+    try {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : null;
+    } catch (e) {
+      console.warn('LocalStorage load error', e);
+      return null;
+    }
+  }
+
+  removeFromStorage(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {}
+  }
+
+  debounce(fn, delay = 350) {
+    let timer = null;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  loadStudioProgress() {
+    const saved1 = this.loadFromStorage('love_choice_v2_studio_m1');
+    if (saved1 && typeof saved1 === 'object') {
+      this.mode1Config = { ...DEFAULT_MODE1_CONFIG, ...saved1 };
+    }
+
+    const saved2 = this.loadFromStorage('love_choice_v2_studio_m2');
+    if (saved2 && typeof saved2 === 'object') {
+      this.mode2Config = {
+        title: saved2.title || DEFAULT_MODE2_CONFIG.title,
+        subtitle: saved2.subtitle || DEFAULT_MODE2_CONFIG.subtitle,
+        roster: Array.isArray(saved2.roster) && saved2.roster.length >= 2 ? saved2.roster : JSON.parse(JSON.stringify(DEFAULT_MODE2_CONFIG.roster)),
+        riggedWinnerId: saved2.riggedWinnerId || "",
+        riggedFinalBoss: saved2.riggedFinalBoss !== undefined ? saved2.riggedFinalBoss : true,
+        musicUrl: saved2.musicUrl || DEFAULT_MODE2_CONFIG.musicUrl || ""
+      };
+    }
+
+    const savedActiveMode = localStorage.getItem('love_choice_v2_active_mode');
+    if (savedActiveMode === 'mode1' || savedActiveMode === 'mode2') {
+      this.currentMode = savedActiveMode;
+    }
+  }
+
+  saveStudioProgress() {
+    this.readCurrentStudioInputs(this.currentMode);
+    this.saveToStorage('love_choice_v2_studio_m1', this.mode1Config);
+    this.saveToStorage('love_choice_v2_studio_m2', this.mode2Config);
+    try {
+      localStorage.setItem('love_choice_v2_active_mode', this.currentMode);
+    } catch (e) {}
+    this.showSaveIndicator();
+  }
+
+  showSaveIndicator() {
+    const ind1 = document.getElementById('save-indicator-mode1');
+    const ind2 = document.getElementById('save-indicator-mode2');
+    [ind1, ind2].forEach(ind => {
+      if (!ind) return;
+      ind.classList.remove('opacity-0');
+      ind.classList.add('opacity-100');
+    });
+  }
+
+  resetMode1ToDefault() {
+    if (confirm('Khôi phục về nội dung câu hỏi mẫu ban đầu của Bẫy Tình Yêu? Mọi sửa đổi trước đó sẽ được làm mới.')) {
+      this.mode1Config = { ...DEFAULT_MODE1_CONFIG };
+      this.removeFromStorage('love_choice_v2_studio_m1');
+      this.syncStudioMode1Inputs();
+      this.renderStudioThemePicker();
+      this.renderStudioGifGrid();
+      this.showToast('✓ Đã khôi phục câu hỏi mẫu mặc định!');
+    }
+  }
+
+  resetMode2ToDefault() {
+    if (confirm('Khôi phục về danh sách 16 người nổi tiếng và cài đặt mẫu ban đầu? Mọi chỉnh sửa trước đó sẽ được làm mới.')) {
+      this.mode2Config = {
+        title: DEFAULT_MODE2_CONFIG.title,
+        subtitle: DEFAULT_MODE2_CONFIG.subtitle,
+        roster: JSON.parse(JSON.stringify(DEFAULT_MODE2_CONFIG.roster)),
+        riggedWinnerId: "",
+        riggedFinalBoss: true,
+        musicUrl: DEFAULT_MODE2_CONFIG.musicUrl || ""
+      };
+      this.removeFromStorage('love_choice_v2_studio_m2');
+      this.renderStudioMode2();
+      this.showToast('✓ Đã khôi phục danh sách mẫu mặc định!');
+    }
+  }
+
+  getMode2GameStorageKey() {
+    const params = new URLSearchParams(window.location.search);
+    const dataParam = params.get('data') || window.location.hash || '';
+    if (dataParam) {
+      let hash = 0;
+      for (let i = 0; i < dataParam.length; i++) {
+        hash = ((hash << 5) - hash) + dataParam.charCodeAt(i);
+        hash |= 0;
+      }
+      return `love_choice_v2_play_m2_${Math.abs(hash)}`;
+    }
+    return 'love_choice_v2_play_m2_local';
+  }
+
+  saveMode2GameProgress() {
+    if (!this.mode2Game) return;
+    this.saveToStorage(this.getMode2GameStorageKey(), this.mode2Game);
+  }
+
+  clearMode2GameProgress() {
+    this.removeFromStorage(this.getMode2GameStorageKey());
+  }
+
+  getMode1GameStorageKey() {
+    const params = new URLSearchParams(window.location.search);
+    const dataParam = params.get('data') || window.location.hash || '';
+    if (dataParam) {
+      let hash = 0;
+      for (let i = 0; i < dataParam.length; i++) {
+        hash = ((hash << 5) - hash) + dataParam.charCodeAt(i);
+        hash |= 0;
+      }
+      return `love_choice_v2_play_m1_${Math.abs(hash)}`;
+    }
+    return 'love_choice_v2_play_m1_local';
   }
 
   init() {
     this.checkUrlRouting();
+    if (this.currentView === 'studio') {
+      this.loadStudioProgress();
+    }
     this.bindGlobalEvents();
     this.renderStudioThemePicker();
     this.renderStudioGifGrid();
@@ -112,9 +274,17 @@ class App {
         url.search = '';
         url.hash = '';
         window.history.pushState({}, '', url.toString());
+        this.loadStudioProgress();
         this.launchStudioView();
       });
     }
+
+    // Reset to default buttons
+    const btnResetM1 = document.getElementById('btn-reset-mode1');
+    if (btnResetM1) btnResetM1.addEventListener('click', () => this.resetMode1ToDefault());
+
+    const btnResetM2 = document.getElementById('btn-reset-mode2');
+    if (btnResetM2) btnResetM2.addEventListener('click', () => this.resetMode2ToDefault());
 
     // Studio Mode Switcher Tabs
     const tabMode1 = document.getElementById('tab-mode1');
@@ -149,11 +319,18 @@ class App {
     playerContainer.classList.add('hidden');
     if (studioTabs) studioTabs.classList.remove('hidden');
 
+    this.syncStudioMode1Inputs();
+    this.renderStudioThemePicker();
+    this.renderStudioGifGrid();
+    this.renderStudioMode2();
     this.switchStudioMode(this.currentMode);
   }
 
   switchStudioMode(mode) {
     this.currentMode = mode;
+    try {
+      localStorage.setItem('love_choice_v2_active_mode', mode);
+    } catch (e) {}
     evasionEngine.detach();
 
     const tabMode1 = document.getElementById('tab-mode1');
@@ -243,6 +420,7 @@ class App {
       if (customGifInput.value.trim()) {
         this.mode1Config.celebrationGif = customGifInput.value.trim();
       }
+      this.debouncedSaveStudio();
     };
 
     [questionInput, subtitleInput, targetInput, rejectInput, celebTitleInput, celebMsgInput].forEach(inp => {
@@ -254,6 +432,7 @@ class App {
         if (customGifInput.value.trim()) {
           this.mode1Config.celebrationGif = customGifInput.value.trim();
           this.renderStudioGifGrid();
+          this.saveStudioProgress();
         }
       });
     }
@@ -263,12 +442,14 @@ class App {
         const val = musicUrlInput.value.trim();
         this.mode1Config.musicUrl = val;
         updateMode1MusicStatus();
+        this.debouncedSaveStudio();
       });
       musicUrlInput.addEventListener('change', () => {
         const val = musicUrlInput.value.trim();
         this.mode1Config.musicUrl = val;
         updateMode1MusicStatus();
         sounds.playMusic(val);
+        this.saveStudioProgress();
       });
     }
 
@@ -281,6 +462,7 @@ class App {
             this.mode1Config.musicUrl = loadEvt.target.result;
             updateMode1MusicStatus();
             sounds.playMusic(this.mode1Config.musicUrl);
+            this.saveStudioProgress();
             this.showToast('🎵 Đã tải file nhạc lên thành công!');
           };
           reader.readAsDataURL(file);
@@ -294,6 +476,7 @@ class App {
         if (musicFileInput) musicFileInput.value = '';
         updateMode1MusicStatus();
         sounds.playMusic('');
+        this.saveStudioProgress();
         this.showToast('Đã khôi phục nhạc mặc định');
       });
     }
@@ -352,6 +535,7 @@ class App {
         this.mode1Config.theme = themeKey;
         this.renderStudioThemePicker();
         this.renderBackgroundDecorations(themeKey);
+        this.saveStudioProgress();
         this.showToast(`✨ Đã đổi chủ đề: ${theme.name}`);
       });
 
@@ -390,6 +574,7 @@ class App {
         const customGifInput = document.getElementById('m1-custom-gif');
         if (customGifInput) customGifInput.value = gif.url;
         this.renderStudioGifGrid();
+        this.saveStudioProgress();
       });
       grid.appendChild(card);
     });
@@ -408,6 +593,7 @@ class App {
       titleInput.value = this.mode2Config.title;
       titleInput.addEventListener('input', () => {
         this.mode2Config.title = titleInput.value.trim() || DEFAULT_MODE2_CONFIG.title;
+        this.debouncedSaveStudio();
       });
     }
 
@@ -415,6 +601,7 @@ class App {
       subtitleInput.value = this.mode2Config.subtitle;
       subtitleInput.addEventListener('input', () => {
         this.mode2Config.subtitle = subtitleInput.value.trim() || DEFAULT_MODE2_CONFIG.subtitle;
+        this.debouncedSaveStudio();
       });
     }
 
@@ -422,6 +609,7 @@ class App {
       riggedFinalBossCheck.checked = this.mode2Config.riggedFinalBoss;
       riggedFinalBossCheck.addEventListener('change', () => {
         this.mode2Config.riggedFinalBoss = riggedFinalBossCheck.checked;
+        this.saveStudioProgress();
       });
     }
 
@@ -440,6 +628,7 @@ class App {
 
       riggedSelect.addEventListener('change', () => {
         this.mode2Config.riggedWinnerId = riggedSelect.value;
+        this.saveStudioProgress();
         this.renderStudioMode2Roster();
       });
     }
@@ -463,6 +652,7 @@ class App {
         if (confirm('Khôi phục danh sách 16 thần tượng mặc định ban đầu?')) {
           this.mode2Config.roster = JSON.parse(JSON.stringify(DEFAULT_CELEBRITIES));
           this.mode2Config.riggedWinnerId = "";
+          this.saveStudioProgress();
           this.renderStudioMode2();
           this.showToast('Đã khôi phục danh sách mặc định!');
         }
@@ -502,12 +692,14 @@ class App {
         const val = m2MusicUrlInput.value.trim();
         this.mode2Config.musicUrl = val;
         updateMode2MusicStatus();
+        this.debouncedSaveStudio();
       });
       m2MusicUrlInput.addEventListener('change', () => {
         const val = m2MusicUrlInput.value.trim();
         this.mode2Config.musicUrl = val;
         updateMode2MusicStatus();
         sounds.playMusic(val);
+        this.saveStudioProgress();
       });
     }
 
@@ -520,6 +712,7 @@ class App {
             this.mode2Config.musicUrl = loadEvt.target.result;
             updateMode2MusicStatus();
             sounds.playMusic(this.mode2Config.musicUrl);
+            this.saveStudioProgress();
             this.showToast('🎵 Đã tải file nhạc cho đấu trường!');
           };
           reader.readAsDataURL(file);
@@ -533,6 +726,7 @@ class App {
         if (m2MusicFileInput) m2MusicFileInput.value = '';
         updateMode2MusicStatus();
         sounds.playMusic('');
+        this.saveStudioProgress();
         this.showToast('Đã khôi phục nhạc mặc định');
       });
     }
@@ -610,6 +804,7 @@ class App {
           this.mode2Config.riggedWinnerId = candidate.id;
           this.showToast(`👑 Đã cài đặt [${candidate.name}] thắng tuyệt đối!`);
         }
+        this.saveStudioProgress();
         this.renderStudioMode2();
       };
 
@@ -624,6 +819,7 @@ class App {
         if (this.mode2Config.riggedWinnerId === candidate.id) {
           this.mode2Config.riggedWinnerId = "";
         }
+        this.saveStudioProgress();
         this.renderStudioMode2();
         this.showToast(`Đã xóa [${candidate.name}]`);
       };
@@ -728,6 +924,7 @@ class App {
         this.showToast(`Đã thêm thành công: ${name}`);
       }
 
+      this.saveStudioProgress();
       modal.classList.add('hidden');
       this.renderStudioMode2();
     };
@@ -763,6 +960,7 @@ class App {
     this.mode2Config.riggedWinnerId = id;
     this.mode2Config.riggedFinalBoss = true;
 
+    this.saveStudioProgress();
     this.renderStudioMode2();
     this.showToast(`🔥 Đã cài đặt [${creatorName}] làm Trùm Cuối và chắc chắn thắng!`);
   }
@@ -834,12 +1032,22 @@ class App {
   /* ========================================================
    * MODE 1: BẪY TÌNH YÊU PLAY ENGINE
    * ======================================================== */
-  startMode1PlayerGame() {
+  startMode1PlayerGame(forceNew = false) {
     evasionEngine.detach();
     const playerContainer = document.getElementById('player-experience-container');
     const theme = THEMES[this.mode1Config.theme] || THEMES.love;
 
     this.renderBackgroundDecorations(this.mode1Config.theme);
+
+    const m1PlayKey = this.getMode1GameStorageKey();
+    if (!forceNew) {
+      const savedM1 = this.loadFromStorage(m1PlayKey);
+      if (savedM1 && savedM1.completed) {
+        this.celebrateMode1();
+        this.showToast('⚡ Đã mở lại màn hình chúc mừng trước đó');
+        return;
+      }
+    }
 
     playerContainer.className = `min-h-[82vh] flex items-center justify-center p-4 transition-colors duration-500 bg-gradient-to-br ${theme.bgGradient} relative z-10`;
 
@@ -898,6 +1106,8 @@ class App {
     sounds.playSuccess();
     this.triggerConfetti();
 
+    this.saveToStorage(this.getMode1GameStorageKey(), { completed: true, timestamp: Date.now() });
+
     const gameBox = document.getElementById('m1-game-box');
     const theme = THEMES[this.mode1Config.theme] || THEMES.love;
 
@@ -936,7 +1146,8 @@ class App {
     lucide.createIcons();
 
     document.getElementById('m1-replay-btn').onclick = () => {
-      this.startMode1PlayerGame();
+      this.removeFromStorage(this.getMode1GameStorageKey());
+      this.startMode1PlayerGame(true);
     };
 
     document.getElementById('m1-share-btn').onclick = () => {
@@ -947,7 +1158,7 @@ class App {
   /* ========================================================
    * MODE 2: ĐẠI CHIẾN THẦN TƯỢNG PLAY ENGINE
    * ======================================================== */
-  startMode2KnockoutGame() {
+  startMode2KnockoutGame(forceNew = false) {
     evasionEngine.detach();
     const roster = JSON.parse(JSON.stringify(this.mode2Config.roster));
 
@@ -958,6 +1169,19 @@ class App {
     }
 
     this.renderBackgroundDecorations('luxury');
+
+    const storageKey = this.getMode2GameStorageKey();
+    if (!forceNew) {
+      const saved = this.loadFromStorage(storageKey);
+      if (saved && !saved.isFinished && saved.candidate1 && saved.candidate2 && saved.roundNumber > 1) {
+        this.mode2Game = saved;
+        this.renderMode2Duel();
+        this.showToast(`⚡ Đã khôi phục tiến trình: Vòng ${saved.roundNumber} / ${saved.totalRounds}`);
+        return;
+      }
+    }
+
+    this.clearMode2GameProgress();
 
     const riggedId = this.mode2Config.riggedWinnerId;
     const finalBossMode = this.mode2Config.riggedFinalBoss;
@@ -989,6 +1213,7 @@ class App {
       winner: null
     };
 
+    this.saveMode2GameProgress();
     this.renderMode2Duel();
   }
 
@@ -1024,6 +1249,11 @@ class App {
 
           <div class="w-full max-w-md mx-auto bg-slate-900 rounded-full h-2.5 overflow-hidden border border-white/10 mt-3">
             <div class="bg-gradient-to-r from-amber-500 to-yellow-400 h-full transition-all duration-500" style="width: ${(roundNumber / totalRounds) * 100}%"></div>
+          </div>
+
+          <div class="flex items-center justify-center gap-3 text-xs text-slate-400 mt-2">
+            <span class="inline-flex items-center gap-1 text-emerald-400 font-semibold"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Đã tự động lưu lượt đấu</span>
+            ${roundNumber > 1 ? `<span>•</span><button id="btn-restart-duel" type="button" class="text-slate-400 hover:text-amber-300 underline font-medium cursor-pointer">Chơi lại từ Vòng 1</button>` : ''}
           </div>
         </div>
 
@@ -1088,6 +1318,15 @@ class App {
     `;
 
     lucide.createIcons();
+
+    const btnRestartDuel = document.getElementById('btn-restart-duel');
+    if (btnRestartDuel) {
+      btnRestartDuel.onclick = () => {
+        if (confirm('Bạn có muốn chơi lại giải đấu từ Vòng 1 không?')) {
+          this.startMode2KnockoutGame(true);
+        }
+      };
+    }
 
     const card1 = document.getElementById('card-cand-1');
     const card2 = document.getElementById('card-cand-2');
@@ -1157,10 +1396,12 @@ class App {
       this.mode2Game.candidate1 = winnerCand;
       this.mode2Game.candidate2 = queue.shift();
       this.mode2Game.roundNumber++;
+      this.saveMode2GameProgress();
       this.renderMode2Duel();
     } else {
       this.mode2Game.isFinished = true;
       this.mode2Game.winner = winnerCand;
+      this.clearMode2GameProgress();
       this.crownChampion();
     }
   }
@@ -1212,7 +1453,8 @@ class App {
     lucide.createIcons();
 
     document.getElementById('m2-restart-btn').onclick = () => {
-      this.startMode2KnockoutGame();
+      this.clearMode2GameProgress();
+      this.startMode2KnockoutGame(true);
     };
 
     document.getElementById('m2-share-btn').onclick = () => {
@@ -1411,6 +1653,10 @@ class App {
     const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
     const directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
 
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(directShareUrl).catch(() => {});
+    }
+
     this.openShareModal(directShareUrl);
   }
 
@@ -1427,6 +1673,7 @@ class App {
     let shortUrl = null;
     let isShowingShort = true;
 
+    if (input) input.value = directShareUrl;
     if (input) {
       input.value = '⚡ Đang tạo link rút gọn siêu ngắn...';
     }
@@ -1438,6 +1685,8 @@ class App {
     }
 
     if (typeBadge) {
+      typeBadge.textContent = '⚡ Đang tạo link rút gọn...';
+      typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30';
       typeBadge.textContent = '⚡ Đang rút gọn link qua API...';
       typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 animate-pulse';
     }
@@ -1447,6 +1696,7 @@ class App {
       if (sUrl && sUrl !== directShareUrl) {
         shortUrl = sUrl;
         currentShowingUrl = shortUrl;
+        if (input) input.value = shortUrl;
         if (input) {
           input.value = shortUrl;
           input.select();
@@ -1462,6 +1712,9 @@ class App {
           toggleBtn.textContent = 'Chuyển sang xem link gốc';
         }
         // Auto-copy short URL to clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shortUrl).catch(() => {});
+        }
         this.copyTextToClipboard(shortUrl).then(() => {
           this.showToast('🎉 Đã tạo & tự động sao chép link rút gọn!');
         }).catch(() => {});
@@ -1480,6 +1733,7 @@ class App {
         if (!shortUrl) return;
         isShowingShort = !isShowingShort;
         currentShowingUrl = isShowingShort ? shortUrl : directShareUrl;
+        if (input) input.value = currentShowingUrl;
         if (input) {
           input.value = currentShowingUrl;
           input.select();
@@ -1493,6 +1747,15 @@ class App {
 
     const doCopy = () => {
       const urlToCopy = currentShowingUrl;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(urlToCopy).then(() => {
+          this.showToast('🎉 Đã sao chép link người chơi!');
+        });
+      } else {
+        input.select();
+        document.execCommand('copy');
+        this.showToast('🎉 Đã sao chép link người chơi!');
+      }
       this.copyTextToClipboard(urlToCopy).then(() => {
         const isShort = shortUrl && urlToCopy === shortUrl;
         this.showToast(isShort ? '🎉 Đã sao chép link rút gọn siêu ngắn!' : '🎉 Đã sao chép link người chơi!');
@@ -1504,6 +1767,7 @@ class App {
     if (modal) {
       modal.classList.remove('hidden');
     }
+    this.showToast('🎉 Đã tạo link chia sẻ!');
   }
 
   showToast(message) {
