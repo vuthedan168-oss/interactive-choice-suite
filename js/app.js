@@ -1048,6 +1048,12 @@ class App {
 
     btnCancel.onclick = () => modal.classList.add('hidden');
 
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        modal.classList.add('hidden');
+      }
+    };
+
     btnSave.onclick = () => {
       const name = nameInp.value.trim();
       const field = fieldInp.value.trim() || 'Thần tượng nổi tiếng';
@@ -1973,6 +1979,11 @@ class App {
     if (copyBtn) copyBtn.onclick = doCopy;
 
     if (modal) {
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          modal.classList.add('hidden');
+        }
+      };
       modal.classList.remove('hidden');
     }
     this.showToast('🎉 Đã tạo link chia sẻ!');
