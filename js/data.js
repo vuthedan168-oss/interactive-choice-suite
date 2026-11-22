@@ -365,23 +365,25 @@ function serializeConfig(type, config) {
 
       // Only save roster if customized by user
       if (Array.isArray(config.roster)) {
-        const isDefaultRoster = JSON.stringify(config.roster) === JSON.stringify(DEFAULT_CELEBRITIES);
-        if (!isDefaultRoster) {
-          packed.r = config.roster.map(c => {
+        packed.r = config.roster.map(c => {
+          const def = (typeof DEFAULT_CELEBRITIES !== 'undefined') ? DEFAULT_CELEBRITIES.find(d => d.id === c.id) : null;
+          // If candidate is an unmodified default celebrity, store only the ID for ultra-compact URL
+          if (def && def.name === c.name && def.field === c.field && def.avatar === c.avatar) {
+            return { i: c.id };
+          }
+          const item = { i: c.id };
+          if (!def || def.name !== c.name) item.n = (c.name || '').trim();
+          if (!def || def.field !== c.field) item.f = (c.field || '').trim();
+          if (!def || def.avatar !== c.avatar) {
             let av = (c.avatar || '').trim();
-            // Critical: If an avatar is an uncompressed base64 data URL > 2500 chars,
-            // never blow up the URL into hundreds of KBs. Clean initials will display gracefully.
+            // Cap base64 avatar to prevent link bloat
             if (av.startsWith('data:image/') && av.length > 2500) {
               av = '';
             }
-            return {
-              i: c.id,
-              n: (c.name || '').trim(),
-              f: (c.field || '').trim(),
-              a: av
-            };
-          });
-        }
+            item.a = av;
+          }
+          return item;
+        });
       }
     }
 
@@ -460,15 +462,18 @@ function deserializeConfig(input) {
         };
       } else if (data.m === 'mode2') {
         const parsedRoster = (data.r && Array.isArray(data.r)) ? data.r.map((c, idx) => {
-          const name = (c.n || c.name || `Nhân vật #${idx + 1}`).trim();
+          const def = (typeof DEFAULT_CELEBRITIES !== 'undefined') ? DEFAULT_CELEBRITIES.find(d => d.id === (c.i || c.id)) : null;
+          const name = (c.n || (def ? def.name : null) || c.name || `Nhân vật #${idx + 1}`).trim();
+          const field = (c.f || (def ? def.field : null) || c.field || 'Thần tượng nổi tiếng').trim();
+          const avatar = c.a !== undefined ? c.a : (def ? def.avatar : (c.avatar || ''));
           const computedInitials = computeInitials(name);
           return {
-            id: c.i || c.id || `celeb-${idx + 1}`,
+            id: c.i || c.id || (def ? def.id : `celeb-${idx + 1}`),
             name: name,
-            field: (c.f || c.field || 'Thần tượng nổi tiếng').trim(),
-            avatar: c.a !== undefined ? c.a : (c.avatar || ''),
-            initials: c.in || c.initials || computedInitials,
-            color: c.c || c.color || 'from-amber-400 to-rose-600'
+            field: field,
+            avatar: avatar,
+            initials: c.in || c.initials || (def ? def.initials : computedInitials),
+            color: c.c || c.color || (def ? def.color : 'from-amber-400 to-rose-600')
           };
         }) : JSON.parse(JSON.stringify(DEFAULT_CELEBRITIES));
 

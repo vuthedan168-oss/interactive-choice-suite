@@ -871,7 +871,7 @@ class App {
     lucide.createIcons();
   }
 
-  compressImageToDataUrl(file, maxDimension = 72, quality = 0.55) {
+  compressImageToDataUrl(file, maxDimension = 48, quality = 0.45) {
     return new Promise((resolve) => {
       if (!file || !file.type || !file.type.startsWith('image/')) {
         resolve('');
@@ -912,7 +912,7 @@ class App {
     });
   }
 
-  compressBase64Image(base64Str, maxDimension = 72, quality = 0.55) {
+  compressBase64Image(base64Str, maxDimension = 48, quality = 0.45) {
     return new Promise((resolve) => {
       if (!base64Str || !base64Str.startsWith('data:image/')) {
         resolve(base64Str);
@@ -953,7 +953,7 @@ class App {
     for (const cand of this.mode2Config.roster) {
       if (cand.avatar && cand.avatar.startsWith('data:image/') && cand.avatar.length > 2500) {
         try {
-          const compressed = await this.compressBase64Image(cand.avatar, 72, 0.55);
+          const compressed = await this.compressBase64Image(cand.avatar, 48, 0.45);
           if (compressed) {
             cand.avatar = compressed;
             modified = true;
@@ -1027,7 +1027,7 @@ class App {
       if (file) {
         this.showToast('⏳ Đang tối ưu và nén ảnh đại diện...');
         try {
-          const compressed = await this.compressImageToDataUrl(file, 72, 0.55);
+          const compressed = await this.compressImageToDataUrl(file, 48, 0.45);
           if (compressed) {
             avatarInp.value = compressed;
             updatePreview();
@@ -1807,18 +1807,52 @@ class App {
   }
 
   async fetchShortUrl(longUrl) {
-    // 1. is.gd via JSONP (bypasses browser CORS completely, ultrafast ~19 chars, direct 301)
-    try {
-      const endpoint = `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
-      const data = await this.jsonpRequest(endpoint, 'callback', 3000);
-      if (data && data.shorturl && data.shorturl.startsWith('http')) {
-        return data.shorturl.trim();
+    // 1. Nếu URL dưới 2400 ký tự, ưu tiên is.gd via JSONP (bypasses CORS, siêu nhanh ~19 ký tự, 301 direct)
+    if (longUrl.length < 2400) {
+      try {
+        const endpoint = `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
+        const data = await this.jsonpRequest(endpoint, 'callback', 3000);
+        if (data && data.shorturl && data.shorturl.startsWith('http')) {
+          return data.shorturl.trim();
+        }
+      } catch (e) {
+        console.warn("is.gd JSONP shortener error:", e);
       }
-    } catch (e) {
-      console.warn("is.gd JSONP shortener error:", e);
+
+      // 2. v.gd via JSONP
+      try {
+        const endpoint = `https://v.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
+        const data = await this.jsonpRequest(endpoint, 'callback', 3000);
+        if (data && data.shorturl && data.shorturl.startsWith('http')) {
+          return data.shorturl.trim();
+        }
+      } catch (e) {
+        console.warn("v.gd JSONP shortener error:", e);
+      }
     }
 
-    // 2. clck.ru via native CORS fetch (official Access-Control-Allow-Origin: *)
+    // 3. da.gd via POST (CORS Access-Control-Allow-Origin: *, hỗ trợ link dài > 10,000 ký tự, rút ngắn chỉ 18-20 ký tự)
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch('https://da.gd/s', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'url=' + encodeURIComponent(longUrl),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim().startsWith('http')) {
+          return text.trim();
+        }
+      }
+    } catch (e) {
+      console.warn("da.gd shortener error:", e);
+    }
+
+    // 4. clck.ru via native CORS fetch
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 3000);
@@ -1834,17 +1868,6 @@ class App {
       }
     } catch (e) {
       console.warn("clck.ru shortener error:", e);
-    }
-
-    // 3. v.gd via JSONP
-    try {
-      const endpoint = `https://v.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
-      const data = await this.jsonpRequest(endpoint, 'callback', 3000);
-      if (data && data.shorturl && data.shorturl.startsWith('http')) {
-        return data.shorturl.trim();
-      }
-    } catch (e) {
-      console.warn("v.gd JSONP shortener error:", e);
     }
 
     // Fallback: return original URL
