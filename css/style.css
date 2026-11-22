@@ -253,3 +253,43 @@ html, body {
     font-size: 0.65rem !important;
   }
 }
+
+/* Modal Viewport Safety & Responsive Scrollbars */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 158, 11, 0.4) rgba(255, 255, 255, 0.04);
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.4);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 158, 11, 0.7);
+}
+
+.custom-scrollbar-pink {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(244, 63, 94, 0.4) rgba(255, 255, 255, 0.04);
+}
+.custom-scrollbar-pink::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar-pink::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 9999px;
+}
+.custom-scrollbar-pink::-webkit-scrollbar-thumb {
+  background: rgba(244, 63, 94, 0.4);
+  border-radius: 9999px;
+}
+.custom-scrollbar-pink::-webkit-scrollbar-thumb:hover {
+  background: rgba(244, 63, 94, 0.7);
+}
+
