@@ -288,28 +288,33 @@ function resolveAvatarUrl(url) {
   if (!url) return '';
   url = url.trim();
 
-  // 1. YouTube Channel Handle: e.g. @captainofficial3180 or https://www.youtube.com/@captainofficial3180
-  const ytChannelMatch = url.match(/(?:(?:https?:\/\/)?(?:www\.)?youtube\.com\/)?@([a-zA-Z0-9_\-\.]+)/i);
+  // 0. Never transform inline Data URLs or Blob URLs
+  if (/^(?:data|blob):/i.test(url)) {
+    return url;
+  }
+
+  // 1. TikTok: https://www.tiktok.com/@username or tiktok.com/@username
+  const ttMatch = url.match(/(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@([a-zA-Z0-9_\-\.]+)/i);
+  if (ttMatch && ttMatch[1]) {
+    return `https://unavatar.io/tiktok/${ttMatch[1]}`;
+  }
+
+  // 2. YouTube Channel Handle: bare @username or https://www.youtube.com/@username
+  const ytChannelMatch = url.match(/(?:(?:https?:\/\/)?(?:www\.)?youtube\.com\/@|^@)([a-zA-Z0-9_\-\.]+)/i);
   if (ytChannelMatch && ytChannelMatch[1]) {
     return `https://unavatar.io/youtube/${ytChannelMatch[1]}`;
   }
 
-  // 2. YouTube Custom Channel: /c/name or /user/name
+  // 3. YouTube Custom Channel: /c/name or /user/name
   const ytCustomMatch = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:c|user)\/([a-zA-Z0-9_\-\.]+)/i);
   if (ytCustomMatch && ytCustomMatch[1]) {
     return `https://unavatar.io/youtube/${ytCustomMatch[1]}`;
   }
 
-  // 3. YouTube Video Thumbnail: e.g. https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID
+  // 4. YouTube Video Thumbnail: e.g. https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID
   const ytVideoMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([a-zA-Z0-9_-]{11})/i);
   if (ytVideoMatch && ytVideoMatch[1]) {
     return `https://img.youtube.com/vi/${ytVideoMatch[1]}/hqdefault.jpg`;
-  }
-
-  // 4. TikTok: https://www.tiktok.com/@username or tiktok.com/@username
-  const ttMatch = url.match(/(?:(?:https?:\/\/)?(?:www\.)?tiktok\.com\/)?@([a-zA-Z0-9_\-\.]+)/i);
-  if (ttMatch && ttMatch[1] && !url.includes('youtube')) {
-    return `https://unavatar.io/tiktok/${ttMatch[1]}`;
   }
 
   // 5. Twitter / X: https://x.com/username or https://twitter.com/username
@@ -329,63 +334,125 @@ function resolveAvatarUrl(url) {
 }
 
 /**
+ * Build compact v3 config object (reused by both URL serialization and cloud paste storage)
+ */
+function buildPackedConfig(type, config, maxBase64Len = 9500) {
+  if (type === 'mode1') {
+    let cg = config.celebrationGif || '';
+    const gifIdx = CURATED_GIFS.findIndex(g => g.url === cg);
+    if (gifIdx !== -1) cg = gifIdx;
+
+    return {
+      v: 3,
+      m: 'mode1',
+      q: (config.question || '').trim(),
+      s: (config.subtitle || '').trim(),
+      yt: (config.targetText || '').trim(),
+      rt: (config.rejectText || '').trim(),
+      t: config.theme || 'love',
+      ct: (config.celebrationTitle || '').trim(),
+      cm: (config.celebrationMessage || '').trim(),
+      cg: cg,
+      mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio') && !config.musicUrl.startsWith('blob:')) ? config.musicUrl.trim() : ''
+    };
+  }
+
+  const packed = {
+    v: 3,
+    m: 'mode2',
+    t: (config.title || '').trim(),
+    s: (config.subtitle || '').trim(),
+    rw: config.riggedWinnerId || '',
+    fb: config.riggedFinalBoss ? 1 : 0,
+    mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio') && !config.musicUrl.startsWith('blob:')) ? config.musicUrl.trim() : ''
+  };
+
+  if (Array.isArray(config.roster)) {
+    packed.r = config.roster.map(c => {
+      const def = (typeof DEFAULT_CELEBRITIES !== 'undefined') ? DEFAULT_CELEBRITIES.find(d => d.id === c.id) : null;
+      if (def && def.name === c.name && def.field === c.field && def.avatar === c.avatar) {
+        return { i: c.id };
+      }
+      const item = { i: c.id };
+      if (!def || def.name !== c.name) item.n = (c.name || '').trim();
+      if (!def || def.field !== c.field) item.f = (c.field || '').trim();
+      if (!def || def.avatar !== c.avatar) {
+        let av = (c.avatar || '').trim();
+        if (av.startsWith('data:image/') && Number.isFinite(maxBase64Len) && av.length > maxBase64Len) {
+          av = '';
+        }
+        item.a = av;
+      }
+      return item;
+    });
+  }
+
+  return packed;
+}
+
+function unpackV3Config(data) {
+  if (!data || data.v !== 3) return data || null;
+
+  if (data.m === 'mode1' || (!data.m && data.q)) {
+    let gifUrl = data.cg;
+    if (typeof data.cg === 'number' && CURATED_GIFS[data.cg]) {
+      gifUrl = CURATED_GIFS[data.cg].url;
+    }
+    return {
+      type: 'mode1',
+      config: {
+        question: data.q || DEFAULT_MODE1_CONFIG.question,
+        subtitle: data.s !== undefined ? data.s : DEFAULT_MODE1_CONFIG.subtitle,
+        targetText: data.yt || DEFAULT_MODE1_CONFIG.targetText,
+        rejectText: data.rt || DEFAULT_MODE1_CONFIG.rejectText,
+        theme: data.t || DEFAULT_MODE1_CONFIG.theme,
+        celebrationTitle: data.ct || DEFAULT_MODE1_CONFIG.celebrationTitle,
+        celebrationMessage: data.cm || DEFAULT_MODE1_CONFIG.celebrationMessage,
+        celebrationGif: gifUrl || DEFAULT_MODE1_CONFIG.celebrationGif,
+        musicUrl: data.mu || ''
+      }
+    };
+  }
+
+  if (data.m === 'mode2') {
+    const parsedRoster = (data.r && Array.isArray(data.r)) ? data.r.map((c, idx) => {
+      const def = (typeof DEFAULT_CELEBRITIES !== 'undefined') ? DEFAULT_CELEBRITIES.find(d => d.id === (c.i || c.id)) : null;
+      const name = (c.n || (def ? def.name : null) || c.name || `Nhân vật #${idx + 1}`).trim();
+      const field = (c.f || (def ? def.field : null) || c.field || 'Thần tượng nổi tiếng').trim();
+      const avatar = c.a !== undefined ? c.a : (def ? def.avatar : (c.avatar || ''));
+      const computedInitials = computeInitials(name);
+      return {
+        id: c.i || c.id || (def ? def.id : `celeb-${idx + 1}`),
+        name: name,
+        field: field,
+        avatar: avatar,
+        initials: c.in || c.initials || (def ? def.initials : computedInitials),
+        color: c.c || c.color || (def ? def.color : 'from-amber-400 to-rose-600')
+      };
+    }) : JSON.parse(JSON.stringify(DEFAULT_CELEBRITIES));
+
+    return {
+      type: 'mode2',
+      config: {
+        title: data.t || DEFAULT_MODE2_CONFIG.title,
+        subtitle: data.s !== undefined ? data.s : DEFAULT_MODE2_CONFIG.subtitle,
+        riggedWinnerId: data.rw || '',
+        riggedFinalBoss: data.fb !== 0,
+        musicUrl: data.mu || '',
+        roster: parsedRoster
+      }
+    };
+  }
+
+  return data;
+}
+
+/**
  * URL State Serialization (Compact, Ultra-Short & URL-Safe)
  */
-function serializeConfig(type, config) {
+function serializeConfig(type, config, maxBase64Len = 9500) {
   try {
-    let packed;
-    if (type === 'mode1') {
-      let cg = config.celebrationGif || '';
-      const gifIdx = CURATED_GIFS.findIndex(g => g.url === cg);
-      if (gifIdx !== -1) cg = gifIdx;
-
-      packed = {
-        v: 3,
-        m: 'mode1',
-        q: (config.question || '').trim(),
-        s: (config.subtitle || '').trim(),
-        yt: (config.targetText || '').trim(),
-        rt: (config.rejectText || '').trim(),
-        t: config.theme || 'love',
-        ct: (config.celebrationTitle || '').trim(),
-        cm: (config.celebrationMessage || '').trim(),
-        cg: cg,
-        mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio') && !config.musicUrl.startsWith('blob:')) ? config.musicUrl.trim() : ''
-      };
-    } else {
-      packed = {
-        v: 3,
-        m: 'mode2',
-        t: (config.title || '').trim(),
-        s: (config.subtitle || '').trim(),
-        rw: config.riggedWinnerId || '',
-        fb: config.riggedFinalBoss ? 1 : 0,
-        mu: (config.musicUrl && !config.musicUrl.startsWith('data:audio') && !config.musicUrl.startsWith('blob:')) ? config.musicUrl.trim() : ''
-      };
-
-      // Only save roster if customized by user
-      if (Array.isArray(config.roster)) {
-        packed.r = config.roster.map(c => {
-          const def = (typeof DEFAULT_CELEBRITIES !== 'undefined') ? DEFAULT_CELEBRITIES.find(d => d.id === c.id) : null;
-          // If candidate is an unmodified default celebrity, store only the ID for ultra-compact URL
-          if (def && def.name === c.name && def.field === c.field && def.avatar === c.avatar) {
-            return { i: c.id };
-          }
-          const item = { i: c.id };
-          if (!def || def.name !== c.name) item.n = (c.name || '').trim();
-          if (!def || def.field !== c.field) item.f = (c.field || '').trim();
-          if (!def || def.avatar !== c.avatar) {
-            let av = (c.avatar || '').trim();
-            // Cap base64 avatar so final URL fits spoo.me direct-redirect capacity
-            if (av.startsWith('data:image/') && av.length > 9500) {
-              av = '';
-            }
-            item.a = av;
-          }
-          return item;
-        });
-      }
-    }
+    const packed = buildPackedConfig(type, config, maxBase64Len);
 
     const raw = JSON.stringify(packed);
     const bytes = (typeof TextEncoder !== 'undefined')
@@ -438,61 +505,7 @@ function deserializeConfig(input) {
     }
 
     const data = JSON.parse(jsonStr);
-
-    // If version 3 (Compact schema)
-    if (data && data.v === 3) {
-      if (data.m === 'mode1' || (!data.m && data.q)) {
-        let gifUrl = data.cg;
-        if (typeof data.cg === 'number' && CURATED_GIFS[data.cg]) {
-          gifUrl = CURATED_GIFS[data.cg].url;
-        }
-        return {
-          type: 'mode1',
-          config: {
-            question: data.q || DEFAULT_MODE1_CONFIG.question,
-            subtitle: data.s !== undefined ? data.s : DEFAULT_MODE1_CONFIG.subtitle,
-            targetText: data.yt || DEFAULT_MODE1_CONFIG.targetText,
-            rejectText: data.rt || DEFAULT_MODE1_CONFIG.rejectText,
-            theme: data.t || DEFAULT_MODE1_CONFIG.theme,
-            celebrationTitle: data.ct || DEFAULT_MODE1_CONFIG.celebrationTitle,
-            celebrationMessage: data.cm || DEFAULT_MODE1_CONFIG.celebrationMessage,
-            celebrationGif: gifUrl || DEFAULT_MODE1_CONFIG.celebrationGif,
-            musicUrl: data.mu || ''
-          }
-        };
-      } else if (data.m === 'mode2') {
-        const parsedRoster = (data.r && Array.isArray(data.r)) ? data.r.map((c, idx) => {
-          const def = (typeof DEFAULT_CELEBRITIES !== 'undefined') ? DEFAULT_CELEBRITIES.find(d => d.id === (c.i || c.id)) : null;
-          const name = (c.n || (def ? def.name : null) || c.name || `Nhân vật #${idx + 1}`).trim();
-          const field = (c.f || (def ? def.field : null) || c.field || 'Thần tượng nổi tiếng').trim();
-          const avatar = c.a !== undefined ? c.a : (def ? def.avatar : (c.avatar || ''));
-          const computedInitials = computeInitials(name);
-          return {
-            id: c.i || c.id || (def ? def.id : `celeb-${idx + 1}`),
-            name: name,
-            field: field,
-            avatar: avatar,
-            initials: c.in || c.initials || (def ? def.initials : computedInitials),
-            color: c.c || c.color || (def ? def.color : 'from-amber-400 to-rose-600')
-          };
-        }) : JSON.parse(JSON.stringify(DEFAULT_CELEBRITIES));
-
-        return {
-          type: 'mode2',
-          config: {
-            title: data.t || DEFAULT_MODE2_CONFIG.title,
-            subtitle: data.s !== undefined ? data.s : DEFAULT_MODE2_CONFIG.subtitle,
-            riggedWinnerId: data.rw || '',
-            riggedFinalBoss: data.fb !== 0,
-            musicUrl: data.mu || '',
-            roster: parsedRoster
-          }
-        };
-      }
-    }
-
-    // Legacy v2 format support
-    return data;
+    return unpackV3Config(data);
   } catch (e) {
     console.error("Failed to deserialize config", e);
     return null;

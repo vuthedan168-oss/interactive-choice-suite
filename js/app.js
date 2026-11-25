@@ -160,7 +160,7 @@ class App {
 
   getMode2GameStorageKey() {
     const params = new URLSearchParams(window.location.search);
-    const dataParam = params.get('data') || window.location.hash || '';
+    const dataParam = params.get('p') || params.get('data') || window.location.hash || '';
     if (dataParam) {
       let hash = 0;
       for (let i = 0; i < dataParam.length; i++) {
@@ -183,7 +183,7 @@ class App {
 
   getMode1GameStorageKey() {
     const params = new URLSearchParams(window.location.search);
-    const dataParam = params.get('data') || window.location.hash || '';
+    const dataParam = params.get('p') || params.get('data') || window.location.hash || '';
     if (dataParam) {
       let hash = 0;
       for (let i = 0; i < dataParam.length; i++) {
@@ -195,12 +195,56 @@ class App {
     return 'love_choice_v2_play_m1_local';
   }
 
-  init() {
-    this.checkUrlRouting();
+  async init() {
+    const routeInfo = this.checkUrlRouting();
     if (this.currentView === 'studio') {
       this.loadStudioProgress();
     }
     this.bindGlobalEvents();
+
+    if (routeInfo && routeInfo.pasteKey) {
+      const studioContainer = document.getElementById('creator-studio-container');
+      const playerContainer = document.getElementById('player-experience-container');
+      const studioTabs = document.getElementById('studio-mode-tabs');
+      if (studioContainer) studioContainer.classList.add('hidden');
+      if (studioTabs) studioTabs.classList.add('hidden');
+      if (playerContainer) {
+        playerContainer.classList.remove('hidden');
+        playerContainer.className = 'min-h-[82vh] flex items-center justify-center p-4 bg-slate-950 relative z-10';
+        playerContainer.innerHTML = `
+          <div class="glass-panel rounded-3xl p-8 text-center border border-white/10 max-w-sm w-full space-y-3">
+            <div class="w-10 h-10 mx-auto rounded-full border-4 border-amber-400/30 border-t-amber-400 animate-spin"></div>
+            <div class="text-sm font-bold text-white">Đang tải dữ liệu trận đấu...</div>
+            <div class="text-xs text-slate-400">Giữ nguyên ảnh HD sắc nét</div>
+          </div>
+        `;
+      }
+
+      const remoteDecoded = await this.fetchCloudConfig(routeInfo.pasteKey);
+      if (remoteDecoded && remoteDecoded.config) {
+        if (remoteDecoded.type === 'mode2') {
+          this.currentMode = 'mode2';
+          this.mode2Config = { ...this.mode2Config, ...remoteDecoded.config };
+        } else {
+          this.currentMode = 'mode1';
+          this.mode1Config = { ...this.mode1Config, ...remoteDecoded.config };
+        }
+      } else if (!routeInfo.hasInlineData && playerContainer) {
+        playerContainer.innerHTML = `
+          <div class="glass-panel rounded-3xl p-8 text-center border border-rose-500/40 max-w-md w-full space-y-4">
+            <div class="text-2xl">⚠️</div>
+            <div class="text-base font-black text-white">Không tải được dữ liệu chia sẻ</div>
+            <p class="text-xs text-slate-300">Link có thể đã hết hạn hoặc mạng đang chặn kết nối. Vui lòng thử lại.</p>
+            <div class="flex items-center justify-center gap-3 pt-2">
+              <button type="button" onclick="window.location.reload()" class="px-5 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs">Thử lại</button>
+              <button type="button" onclick="document.getElementById('btn-brand-home').click()" class="px-5 py-2.5 rounded-xl bg-white/10 text-white font-bold text-xs border border-white/20">Mở Studio</button>
+            </div>
+          </div>
+        `;
+        return;
+      }
+    }
+
     this.renderStudioThemePicker();
     this.renderStudioGifGrid();
     this.syncStudioMode1Inputs();
@@ -219,7 +263,8 @@ class App {
   checkUrlRouting() {
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash;
-    const isPlay = params.get('play') === '1' || params.has('data') || hash.includes('data=');
+    const pasteKey = params.get('p');
+    const isPlay = params.get('play') === '1' || params.has('data') || !!pasteKey || hash.includes('data=');
 
     if (isPlay) {
       this.currentView = 'player';
@@ -229,11 +274,11 @@ class App {
         const hashParams = new URLSearchParams(cleanHash);
         payload = hashParams.get('data') || cleanHash;
       }
-      if (!payload) {
+      if (!payload && !pasteKey) {
         payload = window.location.search || hash;
       }
 
-      const decoded = deserializeConfig(payload);
+      const decoded = payload ? deserializeConfig(payload) : null;
       if (decoded && decoded.config) {
         if (decoded.type === 'mode2') {
           this.currentMode = 'mode2';
@@ -245,10 +290,13 @@ class App {
       } else if (params.get('mode') === 'mode2') {
         this.currentMode = 'mode2';
       }
+
+      return { pasteKey, hasInlineData: !!(decoded && decoded.config) };
     } else {
       this.currentView = 'studio';
       const modeParam = params.get('mode');
       if (modeParam === 'mode2') this.currentMode = 'mode2';
+      return { pasteKey: null, hasInlineData: false };
     }
   }
 
@@ -949,8 +997,8 @@ class App {
         const rawDataUrl = e.target.result;
         const nativeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
-        // Preserve exact untouched original pixels ("nét như ảnh gốc") for files <= 700KB
-        if (file.size <= 700 * 1024 && nativeTypes.includes(file.type)) {
+        // Preserve exact untouched original pixels ("nét như ảnh gốc") for files <= 550KB
+        if (file.size <= 550 * 1024 && nativeTypes.includes(file.type)) {
           resolve(rawDataUrl);
           return;
         }
@@ -959,7 +1007,7 @@ class App {
         img.onload = () => {
           const w = img.naturalWidth || img.width;
           const h = img.naturalHeight || img.height;
-          if (w <= maxDimension && h <= maxDimension && file.size <= 1.2 * 1024 * 1024 && nativeTypes.includes(file.type)) {
+          if (w <= maxDimension && h <= maxDimension && file.size <= 1.0 * 1024 * 1024 && nativeTypes.includes(file.type)) {
             resolve(rawDataUrl);
             return;
           }
@@ -1061,6 +1109,7 @@ class App {
             this.showToast('⚠️ Ảnh đang lưu bị mờ từ bản cũ — hãy tải lại ảnh từ máy để nét gốc!');
           }
         };
+        avatarPreviewImg.style.display = '';
         avatarPreviewImg.src = resolved;
         avatarPreviewImg.classList.remove('hidden');
         avatarPreviewInitials.classList.add('hidden');
@@ -1734,7 +1783,7 @@ class App {
     if (resolvedAvatar) {
       return `
         <div class="w-full h-full relative">
-          <img src="${resolvedAvatar}" referrerpolicy="no-referrer" loading="lazy" alt="${this.escapeHtml(candidate.name)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
+          <img src="${resolvedAvatar}" referrerpolicy="no-referrer" alt="${this.escapeHtml(candidate.name)}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');" />
           <div class="hidden w-full h-full flex flex-col items-center justify-center font-black text-3xl md:text-5xl bg-gradient-to-br from-amber-500 to-red-600 text-white">
             ${initials}
           </div>
@@ -1864,43 +1913,170 @@ class App {
     return success;
   }
 
+  async saveCloudConfig(type, config) {
+    const packed = buildPackedConfig(type, config, Infinity);
+    const jsonBody = JSON.stringify(packed);
+
+    // 1. Primary: pastes.dev (CORS supported, 1MB+ JSON, preserves 100% original sharp photos)
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch('https://api.pastes.dev/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: jsonBody,
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.key) {
+          return `d:${data.key}`;
+        }
+      }
+    } catch (e) {
+      console.warn('pastes.dev save error:', e);
+    }
+
+    // 2. Secondary: paste.gg (CORS *, anonymous unlisted JSON fallback)
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch('https://api.paste.gg/v1/pastes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          visibility: 'unlisted',
+          files: [{ name: 'arena.json', content: { format: 'text', value: jsonBody } }]
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data = await res.json();
+        const pasteId = data && data.result && data.result.id;
+        if (pasteId) {
+          const metaRes = await fetch(`https://api.paste.gg/v1/pastes/${pasteId}`);
+          if (metaRes.ok) {
+            const meta = await metaRes.json();
+            const fileId = meta && meta.result && meta.result.files && meta.result.files[0] && meta.result.files[0].id;
+            if (fileId) {
+              return `g:${pasteId}:${fileId}`;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('paste.gg save error:', e);
+    }
+
+    return null;
+  }
+
+  async fetchCloudConfig(pasteKey) {
+    if (!pasteKey) return null;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      let url = '';
+      if (pasteKey.startsWith('g:')) {
+        const parts = pasteKey.split(':');
+        if (parts.length === 3) {
+          url = `https://api.paste.gg/v1/pastes/${encodeURIComponent(parts[1])}/files/${encodeURIComponent(parts[2])}/raw`;
+        }
+      } else {
+        const cleanKey = pasteKey.startsWith('d:') ? pasteKey.slice(2) : pasteKey;
+        url = `https://api.pastes.dev/${encodeURIComponent(cleanKey)}`;
+      }
+      if (!url) return null;
+
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return unpackV3Config(data);
+    } catch (e) {
+      console.warn('Cloud config load error:', e);
+      return null;
+    }
+  }
+
   async fetchShortUrl(longUrl) {
-    // Only use true HTTP 301/302 direct-redirect shorteners (never v.gd or clck.ru interstitials)
-    // 1. is.gd (~19 chars, HTTP 301 direct redirect; safe without truncation up to 4500 chars)
-    if (longUrl.length <= 4500) {
+    // Only true HTTP 301/302 direct-redirect APIs (never v.gd or clck.ru interstitials)
+    const tryIsGdFetch = async () => {
+      if (longUrl.length > 4500) return null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3500);
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 3500);
         const res = await fetch(`https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`, {
           signal: controller.signal
         });
-        clearTimeout(timer);
         if (res.ok) {
           const data = await res.json();
           if (data && data.shorturl && data.shorturl.startsWith('http')) {
             return data.shorturl.trim();
           }
         }
-      } catch (e) {
-        console.warn("is.gd fetch shortener error:", e);
+      } finally {
+        clearTimeout(timer);
       }
+      return null;
+    };
 
+    const tryIsGdJsonp = async () => {
+      if (longUrl.length > 4500) return null;
+      const data = await this.jsonpRequest(`https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`, 'callback', 3500);
+      return (data && data.shorturl && data.shorturl.startsWith('http')) ? data.shorturl.trim() : null;
+    };
+
+    const tryShrtr = async () => {
+      if (longUrl.length > 2048) return null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3500);
       try {
-        const endpoint = `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
-        const data = await this.jsonpRequest(endpoint, 'callback', 3500);
-        if (data && data.shorturl && data.shorturl.startsWith('http')) {
-          return data.shorturl.trim();
+        const res = await fetch('https://shrtr.top/api/v1/shorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: longUrl }),
+          signal: controller.signal
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.short_url && data.short_url.startsWith('http')) {
+            return data.short_url.trim();
+          }
         }
-      } catch (e) {
-        console.warn("is.gd JSONP shortener error:", e);
+      } finally {
+        clearTimeout(timer);
       }
-    }
+      return null;
+    };
 
-    // 2. spoo.me (~22 chars, HTTP 302 direct redirect; handles up to ~15,000 chars via CORS POST)
-    if (longUrl.length <= 15000) {
+    const tryUrlVanish = async () => {
+      if (longUrl.length > 2048) return null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3500);
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 4500);
+        const res = await fetch(`https://urlvanish.com/api/shorten?url=${encodeURIComponent(longUrl)}`, {
+          signal: controller.signal
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.shorturl && data.shorturl.startsWith('http')) {
+            return data.shorturl.trim();
+          }
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+      return null;
+    };
+
+    const trySpooMe = async () => {
+      if (longUrl.length > 15000) return null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4500);
+      try {
         const res = await fetch('https://spoo.me/', {
           method: 'POST',
           headers: {
@@ -1910,19 +2086,28 @@ class App {
           body: 'url=' + encodeURIComponent(longUrl),
           signal: controller.signal
         });
-        clearTimeout(timer);
         if (res.ok) {
           const data = await res.json();
           if (data && data.short_url && data.short_url.startsWith('http')) {
             return data.short_url.trim().replace(/^http:\/\//i, 'https://');
           }
         }
+      } finally {
+        clearTimeout(timer);
+      }
+      return null;
+    };
+
+    const providers = [tryIsGdFetch, tryShrtr, tryUrlVanish, trySpooMe, tryIsGdJsonp];
+    for (const runProvider of providers) {
+      try {
+        const result = await runProvider();
+        if (result) return result;
       } catch (e) {
-        console.warn("spoo.me shortener error:", e);
+        console.warn('Shortener provider error:', e);
       }
     }
 
-    // Fallback: return original URL
     return longUrl;
   }
 
@@ -1934,7 +2119,30 @@ class App {
 
     // Clone config so the active high-res roster in Studio/Game is NEVER altered or degraded
     const config = JSON.parse(JSON.stringify(mode === 'mode1' ? this.mode1Config : this.mode2Config));
+    const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
 
+    const hasLocalImages = mode === 'mode2' && Array.isArray(config.roster) && config.roster.some(
+      c => c.avatar && c.avatar.startsWith('data:image/')
+    );
+
+    // Try fast compact hash URL directly if there are no uploaded local photos and serialized payload <= 1800 chars
+    if (!hasLocalImages) {
+      const compactSerialized = serializeConfig(mode, config);
+      if (compactSerialized && compactSerialized.length <= 1800) {
+        this.openShareModal(`${publicBase}?play=1&mode=${mode}#data=${compactSerialized}`);
+        return;
+      }
+    }
+
+    // Store full-res config in cloud paste so link stays ~88 chars AND preserves 100% original sharp photos
+    this.showToast('⏳ Đang đóng gói dữ liệu & ảnh gốc sắc nét...');
+    const pasteKey = await this.saveCloudConfig(mode, config);
+    if (pasteKey) {
+      this.openShareModal(`${publicBase}?play=1&mode=${mode}&p=${encodeURIComponent(pasteKey)}`);
+      return;
+    }
+
+    // Fallback when offline/cloud blocked: use #data= hash fragment (never ?data=, prevents 414 URI Too Long)
     if (mode === 'mode2') {
       await this.sanitizeRosterImages(config.roster);
     }
@@ -1945,10 +2153,7 @@ class App {
       return;
     }
 
-    const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
-    let directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
-
-    // Guarantee URL fits direct-redirect shortener limit even if many custom text/images were added
+    let directShareUrl = `${publicBase}?play=1&mode=${mode}#data=${serialized}`;
     if (mode === 'mode2' && directShareUrl.length > 14800 && Array.isArray(config.roster)) {
       config.roster.forEach(c => {
         if (c.avatar && c.avatar.startsWith('data:image/')) {
@@ -1956,7 +2161,7 @@ class App {
         }
       });
       serialized = serializeConfig(mode, config) || serialized;
-      directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
+      directShareUrl = `${publicBase}?play=1&mode=${mode}#data=${serialized}`;
     }
 
     this.openShareModal(directShareUrl);
