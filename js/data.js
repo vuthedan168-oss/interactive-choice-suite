@@ -376,8 +376,8 @@ function serializeConfig(type, config) {
           if (!def || def.field !== c.field) item.f = (c.field || '').trim();
           if (!def || def.avatar !== c.avatar) {
             let av = (c.avatar || '').trim();
-            // Cap base64 avatar to prevent link bloat
-            if (av.startsWith('data:image/') && av.length > 2500) {
+            // Cap base64 avatar so final URL fits spoo.me direct-redirect capacity
+            if (av.startsWith('data:image/') && av.length > 9500) {
               av = '';
             }
             item.a = av;

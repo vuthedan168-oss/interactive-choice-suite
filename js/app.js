@@ -55,6 +55,7 @@ class App {
           return true;
         } catch (e2) {
           console.warn('Quota exceeded after stripping audio data', e2);
+          this.showToast('⚠️ Bộ nhớ trình duyệt đã đầy, hãy dùng ảnh dung lượng vừa phải hơn!');
         }
       }
       console.warn('LocalStorage save error', e);
@@ -871,7 +872,73 @@ class App {
     lucide.createIcons();
   }
 
-  compressImageToDataUrl(file, maxDimension = 48, quality = 0.45) {
+  _resizeImageElement(img, maxDimension, quality, outputMime = '') {
+    let targetW = img.naturalWidth || img.width || maxDimension;
+    let targetH = img.naturalHeight || img.height || maxDimension;
+
+    if (targetW > maxDimension || targetH > maxDimension) {
+      if (targetW > targetH) {
+        targetH = Math.max(1, Math.round((targetH * maxDimension) / targetW));
+        targetW = maxDimension;
+      } else {
+        targetW = Math.max(1, Math.round((targetW * maxDimension) / targetH));
+        targetH = maxDimension;
+      }
+    }
+
+    // Multi-step progressive 2x downsampling prevents canvas aliasing/blurriness on large photos
+    let curCanvas = document.createElement('canvas');
+    let curW = img.naturalWidth || img.width || targetW;
+    let curH = img.naturalHeight || img.height || targetH;
+    curCanvas.width = curW;
+    curCanvas.height = curH;
+    let curCtx = curCanvas.getContext('2d');
+    curCtx.imageSmoothingEnabled = true;
+    curCtx.imageSmoothingQuality = 'high';
+    curCtx.drawImage(img, 0, 0, curW, curH);
+
+    while (curW * 0.5 > targetW && curH * 0.5 > targetH) {
+      const nextW = Math.max(targetW, Math.round(curW * 0.5));
+      const nextH = Math.max(targetH, Math.round(curH * 0.5));
+      const stepCanvas = document.createElement('canvas');
+      stepCanvas.width = nextW;
+      stepCanvas.height = nextH;
+      const stepCtx = stepCanvas.getContext('2d');
+      stepCtx.imageSmoothingEnabled = true;
+      stepCtx.imageSmoothingQuality = 'high';
+      stepCtx.drawImage(curCanvas, 0, 0, curW, curH, 0, 0, nextW, nextH);
+      curCanvas = stepCanvas;
+      curW = nextW;
+      curH = nextH;
+    }
+
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = Math.max(1, targetW);
+    finalCanvas.height = Math.max(1, targetH);
+    const finalCtx = finalCanvas.getContext('2d');
+    finalCtx.imageSmoothingEnabled = true;
+    finalCtx.imageSmoothingQuality = 'high';
+
+    if (outputMime === 'image/jpeg') {
+      finalCtx.fillStyle = '#ffffff';
+      finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    }
+
+    finalCtx.drawImage(curCanvas, 0, 0, curW, curH, 0, 0, finalCanvas.width, finalCanvas.height);
+
+    if (outputMime) {
+      return finalCanvas.toDataURL(outputMime, quality);
+    }
+    try {
+      const webp = finalCanvas.toDataURL('image/webp', quality);
+      if (webp && webp.startsWith('data:image/webp')) {
+        return webp;
+      }
+    } catch (err) {}
+    return finalCanvas.toDataURL('image/jpeg', quality);
+  }
+
+  compressImageToDataUrl(file, maxDimension = 1440, quality = 0.94) {
     return new Promise((resolve) => {
       if (!file || !file.type || !file.type.startsWith('image/')) {
         resolve('');
@@ -879,40 +946,35 @@ class App {
       }
       const reader = new FileReader();
       reader.onload = (e) => {
+        const rawDataUrl = e.target.result;
+        const nativeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+        // Preserve exact untouched original pixels ("nét như ảnh gốc") for files <= 700KB
+        if (file.size <= 700 * 1024 && nativeTypes.includes(file.type)) {
+          resolve(rawDataUrl);
+          return;
+        }
+
         const img = new Image();
         img.onload = () => {
-          let width = img.width || maxDimension;
-          let height = img.height || maxDimension;
-          if (width > height) {
-            if (width > maxDimension) {
-              height = Math.round((height * maxDimension) / width);
-              width = maxDimension;
-            }
-          } else {
-            if (height > maxDimension) {
-              width = Math.round((width * maxDimension) / height);
-              height = maxDimension;
-            }
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          if (w <= maxDimension && h <= maxDimension && file.size <= 1.2 * 1024 * 1024 && nativeTypes.includes(file.type)) {
+            resolve(rawDataUrl);
+            return;
           }
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, width);
-          canvas.height = Math.max(1, height);
-          const ctx = canvas.getContext('2d');
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressed = canvas.toDataURL('image/jpeg', quality);
-          resolve(compressed);
+          const preferMime = file.type === 'image/png' ? 'image/webp' : '';
+          resolve(this._resizeImageElement(img, maxDimension, quality, preferMime));
         };
-        img.onerror = () => resolve(e.target.result);
-        img.src = e.target.result;
+        img.onerror = () => resolve(rawDataUrl);
+        img.src = rawDataUrl;
       };
       reader.onerror = () => resolve('');
       reader.readAsDataURL(file);
     });
   }
 
-  compressBase64Image(base64Str, maxDimension = 48, quality = 0.45) {
+  compressBase64Image(base64Str, maxDimension = 1440, quality = 0.94) {
     return new Promise((resolve) => {
       if (!base64Str || !base64Str.startsWith('data:image/')) {
         resolve(base64Str);
@@ -920,52 +982,42 @@ class App {
       }
       const img = new Image();
       img.onload = () => {
-        let width = img.width || maxDimension;
-        let height = img.height || maxDimension;
-        if (width > height) {
-          if (width > maxDimension) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          }
-        } else {
-          if (height > maxDimension) {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, width);
-        canvas.height = Math.max(1, height);
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        resolve(this._resizeImageElement(img, maxDimension, quality));
       };
       img.onerror = () => resolve('');
       img.src = base64Str;
     });
   }
 
-  async sanitizeRosterImages() {
-    if (!this.mode2Config || !Array.isArray(this.mode2Config.roster)) return;
-    let modified = false;
-    for (const cand of this.mode2Config.roster) {
-      if (cand.avatar && cand.avatar.startsWith('data:image/') && cand.avatar.length > 2500) {
-        try {
-          const compressed = await this.compressBase64Image(cand.avatar, 48, 0.45);
-          if (compressed) {
-            cand.avatar = compressed;
-            modified = true;
+  async sanitizeRosterImages(targetRoster) {
+    if (!Array.isArray(targetRoster)) return;
+    const localImgCands = targetRoster.filter(c => c.avatar && c.avatar.startsWith('data:image/'));
+    if (localImgCands.length === 0) return;
+
+    // Budget keeps serialized share URL safely under spoo.me direct-redirect limit (~15k chars)
+    const perCandBudget = Math.min(8500, Math.floor(9200 / localImgCands.length));
+    const presets = [
+      [360, 0.82],
+      [240, 0.74],
+      [160, 0.65],
+      [100, 0.55]
+    ];
+
+    for (const cand of localImgCands) {
+      if (cand.avatar.length <= perCandBudget) continue;
+      let fitted = '';
+      try {
+        for (const [dim, qual] of presets) {
+          const attempt = await this.compressBase64Image(cand.avatar, dim, qual);
+          if (attempt && attempt.length <= perCandBudget) {
+            fitted = attempt;
+            break;
           }
-        } catch (e) {
-          cand.avatar = '';
-          modified = true;
         }
+      } catch (e) {
+        fitted = '';
       }
-    }
-    if (modified) {
-      this.saveStudioProgress();
+      cand.avatar = fitted;
     }
   }
 
@@ -1004,10 +1056,16 @@ class App {
       const rawUrl = avatarInp.value.trim();
       const resolved = resolveAvatarUrl(rawUrl);
       if (resolved) {
+        avatarPreviewImg.onload = () => {
+          if (rawUrl.startsWith('data:image/') && avatarPreviewImg.naturalWidth > 0 && avatarPreviewImg.naturalWidth < 120) {
+            this.showToast('⚠️ Ảnh đang lưu bị mờ từ bản cũ — hãy tải lại ảnh từ máy để nét gốc!');
+          }
+        };
         avatarPreviewImg.src = resolved;
         avatarPreviewImg.classList.remove('hidden');
         avatarPreviewInitials.classList.add('hidden');
       } else {
+        avatarPreviewImg.onload = null;
         avatarPreviewImg.classList.add('hidden');
         avatarPreviewInitials.classList.remove('hidden');
         const nameVal = nameInp.value.trim() || 'VIP';
@@ -1025,13 +1083,13 @@ class App {
     avatarFileInp.onchange = async (e) => {
       const file = e.target.files[0];
       if (file) {
-        this.showToast('⏳ Đang tối ưu và nén ảnh đại diện...');
+        this.showToast('⏳ Đang xử lý ảnh giữ nguyên độ nét gốc...');
         try {
-          const compressed = await this.compressImageToDataUrl(file, 48, 0.45);
-          if (compressed) {
-            avatarInp.value = compressed;
+          const processed = await this.compressImageToDataUrl(file, 1440, 0.94);
+          if (processed) {
+            avatarInp.value = processed;
             updatePreview();
-            this.showToast('⚡ Đã nén ảnh đại diện siêu nhẹ!');
+            this.showToast('✨ Đã tải ảnh đại diện sắc nét chuẩn ảnh gốc!');
           } else {
             const reader = new FileReader();
             reader.onload = (loadEvent) => {
@@ -1041,7 +1099,7 @@ class App {
             reader.readAsDataURL(file);
           }
         } catch (err) {
-          console.warn('Image compression error', err);
+          console.warn('Image upload error', err);
         }
       }
     };
@@ -1591,7 +1649,7 @@ class App {
       };
 
       card2.onclick = () => {
-        sounds.playWhoosh();
+        sounds.playSelect();
         this.selectCandidateWinner(candidate2);
       };
     }
@@ -1807,67 +1865,61 @@ class App {
   }
 
   async fetchShortUrl(longUrl) {
-    // 1. Nếu URL dưới 2400 ký tự, ưu tiên is.gd via JSONP (bypasses CORS, siêu nhanh ~19 ký tự, 301 direct)
-    if (longUrl.length < 2400) {
+    // Only use true HTTP 301/302 direct-redirect shorteners (never v.gd or clck.ru interstitials)
+    // 1. is.gd (~19 chars, HTTP 301 direct redirect; safe without truncation up to 4500 chars)
+    if (longUrl.length <= 4500) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3500);
+        const res = await fetch(`https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.shorturl && data.shorturl.startsWith('http')) {
+            return data.shorturl.trim();
+          }
+        }
+      } catch (e) {
+        console.warn("is.gd fetch shortener error:", e);
+      }
+
       try {
         const endpoint = `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
-        const data = await this.jsonpRequest(endpoint, 'callback', 3000);
+        const data = await this.jsonpRequest(endpoint, 'callback', 3500);
         if (data && data.shorturl && data.shorturl.startsWith('http')) {
           return data.shorturl.trim();
         }
       } catch (e) {
         console.warn("is.gd JSONP shortener error:", e);
       }
+    }
 
-      // 2. v.gd via JSONP
+    // 2. spoo.me (~22 chars, HTTP 302 direct redirect; handles up to ~15,000 chars via CORS POST)
+    if (longUrl.length <= 15000) {
       try {
-        const endpoint = `https://v.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`;
-        const data = await this.jsonpRequest(endpoint, 'callback', 3000);
-        if (data && data.shorturl && data.shorturl.startsWith('http')) {
-          return data.shorturl.trim();
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4500);
+        const res = await fetch('https://spoo.me/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+          },
+          body: 'url=' + encodeURIComponent(longUrl),
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.short_url && data.short_url.startsWith('http')) {
+            return data.short_url.trim().replace(/^http:\/\//i, 'https://');
+          }
         }
       } catch (e) {
-        console.warn("v.gd JSONP shortener error:", e);
+        console.warn("spoo.me shortener error:", e);
       }
-    }
-
-    // 3. da.gd via POST (CORS Access-Control-Allow-Origin: *, hỗ trợ link dài > 10,000 ký tự, rút ngắn chỉ 18-20 ký tự)
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch('https://da.gd/s', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'url=' + encodeURIComponent(longUrl),
-        signal: controller.signal
-      });
-      clearTimeout(timer);
-      if (res.ok) {
-        const text = await res.text();
-        if (text && text.trim().startsWith('http')) {
-          return text.trim();
-        }
-      }
-    } catch (e) {
-      console.warn("da.gd shortener error:", e);
-    }
-
-    // 4. clck.ru via native CORS fetch
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(`https://clck.ru/--?url=${encodeURIComponent(longUrl)}`, {
-        signal: controller.signal
-      });
-      clearTimeout(timer);
-      if (res.ok) {
-        const text = await res.text();
-        if (text && text.trim().startsWith('http')) {
-          return text.trim();
-        }
-      }
-    } catch (e) {
-      console.warn("clck.ru shortener error:", e);
     }
 
     // Fallback: return original URL
@@ -1880,19 +1932,32 @@ class App {
   async generateAndCopyShareLink(mode = 'mode1') {
     this.readCurrentStudioInputs(mode);
 
+    // Clone config so the active high-res roster in Studio/Game is NEVER altered or degraded
+    const config = JSON.parse(JSON.stringify(mode === 'mode1' ? this.mode1Config : this.mode2Config));
+
     if (mode === 'mode2') {
-      await this.sanitizeRosterImages();
+      await this.sanitizeRosterImages(config.roster);
     }
 
-    const config = mode === 'mode1' ? this.mode1Config : this.mode2Config;
-    const serialized = serializeConfig(mode, config);
+    let serialized = serializeConfig(mode, config);
     if (!serialized) {
       alert('Lỗi tạo link chia sẻ!');
       return;
     }
 
     const publicBase = 'https://vuthedan168-oss.github.io/interactive-choice-suite/';
-    const directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
+    let directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
+
+    // Guarantee URL fits direct-redirect shortener limit even if many custom text/images were added
+    if (mode === 'mode2' && directShareUrl.length > 14800 && Array.isArray(config.roster)) {
+      config.roster.forEach(c => {
+        if (c.avatar && c.avatar.startsWith('data:image/')) {
+          c.avatar = '';
+        }
+      });
+      serialized = serializeConfig(mode, config) || serialized;
+      directShareUrl = `${publicBase}?play=1&mode=${mode}&data=${serialized}`;
+    }
 
     this.openShareModal(directShareUrl);
   }
@@ -1910,47 +1975,53 @@ class App {
     let shortUrl = null;
     let isShowingShort = true;
 
-    if (input) input.value = directShareUrl;
+    const setQrUrl = (targetUrl) => {
+      if (!qrImg) return;
+      if (targetUrl && targetUrl.length <= 2400) {
+        qrImg.classList.remove('opacity-40');
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(targetUrl)}`;
+      } else {
+        qrImg.removeAttribute('src');
+        qrImg.alt = 'Link quá dài để tạo mã QR trực tiếp';
+      }
+    };
+
     if (input) {
-      input.value = '⚡ Đang tạo link rút gọn siêu ngắn...';
+      input.value = '⚡ Đang tạo link rút gọn trỏ thẳng vào game...';
     }
     if (qrImg) {
-      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(directShareUrl)}`;
+      qrImg.removeAttribute('src');
+      qrImg.classList.add('opacity-40');
+      qrImg.alt = 'Đang tạo mã QR...';
+    }
+    if (toggleBtn) {
+      toggleBtn.classList.add('hidden');
     }
     if (openBtn) {
       openBtn.onclick = () => window.open(currentShowingUrl, '_blank');
     }
-
     if (typeBadge) {
       typeBadge.textContent = '⚡ Đang tạo link rút gọn...';
-      typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30';
-      typeBadge.textContent = '⚡ Đang rút gọn link qua API...';
       typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 animate-pulse';
     }
 
-    // Fetch shortened URL asynchronously
+    // Fetch direct-redirect shortened URL asynchronously before generating QR
     this.fetchShortUrl(directShareUrl).then(sUrl => {
       if (sUrl && sUrl !== directShareUrl) {
         shortUrl = sUrl;
         currentShowingUrl = shortUrl;
-        if (input) input.value = shortUrl;
         if (input) {
           input.value = shortUrl;
           input.select();
         }
-        if (qrImg) {
-          qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(shortUrl)}`;
-        }
+        setQrUrl(shortUrl);
         if (typeBadge) {
-          typeBadge.textContent = '⚡ Link rút gọn siêu ngắn (tiện gửi Zalo / SMS)';
+          typeBadge.textContent = '⚡ Link rút gọn trực tiếp (vào thẳng màn chơi)';
           typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30';
         }
         if (toggleBtn) {
+          toggleBtn.classList.remove('hidden');
           toggleBtn.textContent = 'Chuyển sang xem link gốc';
-        }
-        // Auto-copy short URL to clipboard
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(shortUrl).catch(() => {});
         }
         this.copyTextToClipboard(shortUrl).then(() => {
           this.showToast('🎉 Đã tạo & tự động sao chép link rút gọn!');
@@ -1958,6 +2029,7 @@ class App {
       } else {
         currentShowingUrl = directShareUrl;
         if (input) input.value = directShareUrl;
+        setQrUrl(directShareUrl);
         if (typeBadge) {
           typeBadge.textContent = 'Link trực tiếp';
           typeBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-bold border border-pink-500/30';
@@ -1970,32 +2042,20 @@ class App {
         if (!shortUrl) return;
         isShowingShort = !isShowingShort;
         currentShowingUrl = isShowingShort ? shortUrl : directShareUrl;
-        if (input) input.value = currentShowingUrl;
         if (input) {
           input.value = currentShowingUrl;
           input.select();
         }
-        if (qrImg) {
-          qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(currentShowingUrl)}`;
-        }
+        setQrUrl(currentShowingUrl);
         toggleBtn.textContent = isShowingShort ? 'Chuyển sang xem link gốc' : 'Chuyển sang xem link rút gọn';
       };
     }
 
     const doCopy = () => {
       const urlToCopy = currentShowingUrl;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(urlToCopy).then(() => {
-          this.showToast('🎉 Đã sao chép link người chơi!');
-        });
-      } else {
-        input.select();
-        document.execCommand('copy');
-        this.showToast('🎉 Đã sao chép link người chơi!');
-      }
       this.copyTextToClipboard(urlToCopy).then(() => {
         const isShort = shortUrl && urlToCopy === shortUrl;
-        this.showToast(isShort ? '🎉 Đã sao chép link rút gọn siêu ngắn!' : '🎉 Đã sao chép link người chơi!');
+        this.showToast(isShort ? '🎉 Đã sao chép link rút gọn trực tiếp!' : '🎉 Đã sao chép link người chơi!');
       });
     };
 

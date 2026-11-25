@@ -86,21 +86,48 @@ class SoundFx {
 
     try {
       const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(3200, now);
+      filter.connect(this.ctx.destination);
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(580, now);
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+      // Warm 2-note crystal chime (E5 -> B5) matching the C-G-Am-F BGM palette
+      const chimeNotes = [
+        { freq: 659.25, delay: 0, dur: 0.16, peak: 0.14 },
+        { freq: 987.77, delay: 0.055, dur: 0.24, peak: 0.12 }
+      ];
 
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+      chimeNotes.forEach(({ freq, delay, dur, peak }) => {
+        const start = now + delay;
+        const osc = this.ctx.createOscillator();
+        const overtone = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const overtoneGain = this.ctx.createGain();
 
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
 
-      osc.start(now);
-      osc.stop(now + 0.12);
+        overtone.type = 'triangle';
+        overtone.frequency.setValueAtTime(freq * 2, start);
+
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(peak, start + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0008, start + dur);
+
+        overtoneGain.gain.setValueAtTime(0.0001, start);
+        overtoneGain.gain.linearRampToValueAtTime(peak * 0.18, start + 0.006);
+        overtoneGain.gain.exponentialRampToValueAtTime(0.0004, start + dur * 0.65);
+
+        osc.connect(gain);
+        overtone.connect(overtoneGain);
+        overtoneGain.connect(gain);
+        gain.connect(filter);
+
+        osc.start(start);
+        overtone.start(start);
+        osc.stop(start + dur + 0.02);
+        overtone.stop(start + dur + 0.02);
+      });
     } catch (e) {
       console.warn("Audio playSelect error:", e);
     }
